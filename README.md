@@ -2,6 +2,11 @@
 
 ## About
 
+This branch contains the edits done for using TEOBResumS in GWFish repository.
+
+Author of this branch - Anirudh Srivastha Nemmani
+
+
 <p align="center">
   <img src="gwfish-1.png" width="200" title="Logo">
 </p>
