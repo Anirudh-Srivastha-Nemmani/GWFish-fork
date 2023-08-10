@@ -5,7 +5,8 @@ import numpy as np
 import sympy as sp
 from scipy.interpolate import interp1d
 import scipy.optimize as optimize
-
+import sys
+sys.path.append('/home/anirudh.nemmani/git_repos/teobresums/Python/')
 try:
     import lalsimulation as lalsim
     import lal
@@ -13,6 +14,21 @@ try:
 except ModuleNotFoundError as err:
     uselal = err
     logging.warning('LAL package is not installed.'+\
+                    'Only GWFish waveforms available.')
+
+try:
+    import EOBRun_module
+except ModuleNotFoundError as err:
+    useeobrun = err
+    logging.warning('EOBRun package is not installed.'+\
+                    'Only GWFish waveforms available.')
+
+try:
+    import pycbc
+    from pycbc.waveform import utils
+    from pycbc.types import TimeSeries, FrequencySeries
+except ModuleNotFoundError as err:
+    logging.warning('PyCBC package is not installed.'+\
                     'Only GWFish waveforms available.')
 
 import GWFish as gw
@@ -1029,3 +1045,272 @@ class IMRPhenomD(Waveform):
         plt.savefig(output_folder + 'psi_phenomD_zoomed.png')
         plt.close()
 
+class TEOBResumS(Waveform):
+    """
+    Our implementation of TEOBResumS 
+
+    This is made from GWEAT by Anuj Mishra. Link to GWEAT package is https://gitlab.com/anuj137/GWEAT
+
+    Link to TEOBResumS - https://bitbucket.org/eob_ihes/teobresums/src/master/PyCBC/teobresums.py
+    
+    Author - Anirudh S. Nemmani
+    """
+    def __init__(self, name, gw_params, data_params):
+        super().__init__(name, gw_params, data_params)
+        self._maxn = None
+        self.psi = None
+        if self.name != 'TEOBResumS':
+            logging.warning('Different waveform name passed to TEOBResumS: '+\
+                             self.name)
+    
+    def modes_to_k(self, modes):
+        """ Map (l, m) to linear index """
+        return sorted([int(x[0]*(x[0]-1)/2 + x[1]-2) for x in modes])
+
+    def _fd_gwfish_output_format(self, hfp, hfc):
+
+        hfp = hfp[:, np.newaxis]
+        hfc = hfc[:, np.newaxis]
+
+        polarizations = np.hstack((hfp, hfc))
+
+        return polarizations
+
+    def teobresums_params(self):
+
+        initial_defaults = dict(mode_array=None, taper=True)
+        pars = initial_defaults.copy()
+        
+        m1          = self.gw_params['mass_1']
+        m2          = self.gw_params['mass_2']
+        lambda1     = self.gw_params['lambda_1']
+        lambda2     = self.gw_params['lambda_2']
+        distance    = self.gw_params['luminosity_distance']
+        inclination = self.gw_params['theta_jn']
+        coa_phase   = self.gw_params['phase']
+        ecc         = self.gw_params['eccentricity']
+        spin_input_params = {'theta_jn': inclination,
+                             'phi_jl': self.gw_params['phi_jl'],
+                             'tilt_1': 0,
+                             'tilt_2': 0,
+                             'phi_12': self.gw_params['phi_12'],
+                             'a_1': self.gw_params['a_1'],
+                             'a_2': self.gw_params['a_2'],
+                             'mass_1': m1,
+                             'mass_2': m2,
+                             'phase': coa_phase}
+
+        self.gw_params['iota'], self.gw_params['spin_1x'], \
+            self.gw_params['spin_1y'], self.gw_params['spin_1z'], \
+            self.gw_params['spin_2x'], self.gw_params['spin_2y'], \
+            self.gw_params['spin_2z'] = bilby_to_lalsimulation_spins(\
+            reference_frequency=self.f_ref, **spin_input_params)
+        
+        #Aligned spin case, TEOBResumS doesn'twork with precession
+        chi1z       = self.gw_params['spin_1z']
+        chi2z       = self.gw_params['spin_2z']
+
+
+        self.sample_rate = 1./self.delta_t
+        
+        # Initial frequency and sampling
+        flow = self.f_min
+        srate = self.sample_rate
+
+        # For generation in "TD"
+        interp_uniform_grid = 1   # interpolate on grid with given dt
+
+        #Adding given modes
+        if pars['mode_array'] is None:
+            k = self.modes_to_k([(2,2)])
+        else:
+            k = self.modes_to_k(pars['mode_array'])    # will be overridden if 'output_lm' is explicitly provided
+            if k[0] < 0 or k[-1] > 34:
+                raise ValueError("Invalid mode list.")
+
+        # checking mass convention
+        q = m1/m2
+        if q < 1.0 :
+            m1,m2 = m2,m1
+            chi1z, chi2z = chi2z, chi1z
+            lambda1, lambda2 = lambda2, lambda1
+            q = 1./q
+
+        defaults = {               
+            ## Intrinsic parameters 
+            'M' : m1+m2,                   # Total mass of the system [Msun]
+            'q' : q,                       # Mass ratio of the system
+            'LambdaAl2' : lambda1,         # Quadrupolar tidal parameter of body 1; For BH LambdaAl2=0; For NS LambdaAl2!=0.
+            'LambdaBl2' : lambda2,         # Quadrupolar tidal parameter of body 2; For BH LambdaBl2=0; For NS LambdaBl2!=0.
+            'chi1' : chi1z,                   # Aligned spin of body 1, overridden by chi1z
+            'chi2' : chi2z,                   # Aligned spin of body 2, overridden by chi2z
+            'chi1x': 0.,                   # x component of the spin of body 1
+            'chi1y': 0.,                   # y component of the spin of body 1
+            'chi1z': chi1z,                   # z component of the spin of body 1
+            'chi2x': 0.,                   # x component of the spin of body 2
+            'chi2y': 0.,                   # y component of the spin of body 2
+            'chi2z': chi2z,                   # z component of the spin of body 2
+                                   
+            ## Extrinsic parameters
+            'distance' : distance,               # Distance of the source from Earth [Mpc] 
+            'inclination' : inclination,         # Angle between the observer and the orbital angular momentum at the initial time [radians]
+            'coalescence_angle' : coa_phase,     # Azimuthal angle entering the spherical harmonics decomposition [radians]; reference angle/phase at coalescence  
+            'trigger_time' : self.gw_params['geocent_time'],      # time at the maximum strain amplitude; default=0 just like PyCBC timeseries.
+            'ra' : self.gw_params['ra'],
+            'dec' : self.gw_params['dec'],
+            'psi' : self.gw_params['psi'],
+            
+            ## Waveform settings
+            'domain' : 0,                         # 0 = TD, 1 = FD
+            # 'r0' : None,                          # Initial radius (Compute from initial GW freq.)
+            'initial_frequency': flow, # in Hz if use_geometric_units = 0, else in geometric units
+            'use_mode_lm' : k,                    # List of waveform modes to use
+            'use_geometric_units': 0,             # I/O units output: 1 = geometric, 0 = physical
+            
+            ## Interpolate the dynamics and waveform
+            # 1. if TD, and interp_uniform_grid:
+            #   i. NOT use_geometric_units -> 1/dt = srate_interp
+            #   ii. use_geometric_units    ->  dt  = dt_interp
+            # 2. if FD, dt_interp is ignored & f_max = srate_interp / 2
+            'srate_interp': srate,              # In Hz.
+            'dt_interp': None,                  # In geometric unit. Default: 0.5
+            'interp_uniform_grid':interp_uniform_grid,
+            
+            'df': self._frequencyvector[1] - self._frequencyvector[0], # Frequency spacing for TEOBResumSPA, in the same units as initial_frequency. Freq axis goes from initial_frequency to srate_interp/2. in units of df.
+            # 'interp_freqs': None,   # Flag to use a user-input list of frequency to interpolate TEOBResumSPA. Overrides df.
+            # 'freqs': None,                # List of frequencies required by interp_freqs
+            
+            # ## Interpolation of the merger dynamics, after the peak of Omega.
+            # #    - dt = dt_merger_interp
+            # 'dt_merger_interp': None,           # In geometric unit. Default: 0.5
+            
+            ## Dynamics and waveform computed from ODE
+            # If `ode_timestep=="Uniform"`:
+            #   i. NOT use_geometric_units -> 1/dt = srate_interp
+            #   ii. use_geometric_units    ->  dt  = dt_interp
+            'srate': srate,                      # In Hz.
+            'dt': None,                         # In geometric unit. Default: 0.5
+            
+            # ## ODE
+            # 'ode_timestep' : None,              # ODE timestep model. Options: ['adaptive', 'uniform', 'adaptive+uniform_after_LSO']
+            # 'ode_abstol' : None,                # Absolute numerical tolerance.       Default: 1e-13
+            # 'ode_reltol' : None,                # Relative numerical tolerance.       Default: 1e-11
+            # 'ode_tmax' : None,                  # Maximum integration time.           Default: 1e9
+            # 'ode_stop_radius' : None,           # Stop ODE evoluation at this r.      Default: 1.0
+            # 'ode_stop_afterNdt' : None,         # Stop ODE evoluation N iterations
+                                                # after the peak of orbital freq.     Default: 4
+            # ## NQC stuff
+            # 'nqc' : None,                       # How to set NQCs. Options: ['manual', 'auto', 'no']
+            # 'nqc_coefs_flx' : None,             # NQC model used in the flux.       Defaults: {BBH/BHNS: nrfit_spin202002, BNS: None}
+            # 'nqc_coefs_hlm' : None,             # NQC model used in the waveform.   Defaults: {BBH/BHNS: compute, BNS: None}
+            
+            # ## Tidal stuff
+            # "tides": 0,
+            # "tides_gravitomagnetic": 0,
+            # 'use_tidal' : 0,                    # Tidal model.                 Defaults: {BBH: TIDES_OFF, BHNS: TEOBRESUM, BNS: TIDES_TEOBRESUM3} (see USETIDAL)
+            # 'use_tidal_gravitomagnetic' : 0,    # Gravitomagnetic tides model. Defaults: {BBH/BHNS: TIDES_GM_OFF, BNS: TIDES_GM_PN}
+            # 'pGSF_tidal' : None,                # GSF p-exponent.              Default = 4.0
+            
+            # ## Light ring and Last stable orbit
+            # 'compute_LR' : 0,                   # Compute the light ring (LR)?
+            # 'compute_LR_guess' : None,          # Initial guess of the LR
+            # 'compute_LSO' : 0,                  # Compute the last stable orbit (LSO)?
+            # 'compute_LSO_guess' : None,         # Iniital guess of the LSO
+            
+    #         ## Post Adiabatic
+    #         'postadiabatic_dynamics' : 0,         # Postadiabatic approxiamation (PA)?
+    #         'postadiabatic_dynamics_N' : None,    # N-th order PA.                              Default: 8
+    #         'postadiabatic_dynamics_size' : None, # Guess for the size of the PA dynamics.      Default: 800
+    #         'postadiabatic_dynamics_stop' : None, # Stop after PA dynamics?                     Default: no
+    #         'postadiabatic_dynamics_rmin' : None, # Stop PA dynamics at this separation value.  Default: 14.0
+            
+            # ## Additional options
+            # 'use_speedytail' : None,            # Speed up the computation of the tail factor in h_lm and F_lm? Default: No
+            # 'centrifugal_radius' : None,        # Model for the centrifugal radius.                             Default: {BBH/BHNS: NLO, BNS: NNLO}
+            # 'use_flm' : None,                   # Model for radiation reactoin.                                 Default: {BBH/BHNS: HM, BNS: SSNLO}
+            # 'size' : None,                      # Initial guess of the size of the waveform.                    Default: 500
+            # 'ringdown_extend_array' : None,     # Extend the ringdown array                                     Default: 500
+            
+            # ## Output Control
+            # 'output_hpc' : 0,                   # Output plus and cross polarisations
+            # 'output_multipoles' : 0,            # Output the waveform multipoles h_lm
+            'output_lm' : k,                    # List of modes to output (if `output_multipoles`==True)
+            'output_dynamics' : 0,              # Output the EOB dynamics
+            'output_ringdown': 0,               # Output the ringdown
+            'output_dir': "./data/",            # The output directory if any of the above is "yes", but it does not seem to be working
+            'arg_out': 0,                       # Function output, return modes hlm/hflm. Default = 0 (no)
+    
+            ## Evolution
+            # The following affect the evolution **only** if on teobresums-eccentric branch
+            'ecc': ecc,                         # Eccentricity at the initial frequency.
+            'ecc_freq': 2,                      # 0,1,2: "PERIASTRON", "AVERAGE", "APASTRON", None -> AVERAGE
+            
+            # # Hyperbolic settings
+            # 'r_hyp': 0.,                        # Initial radius for hyperbolic orbits (0. -> r0 compute from fmin and ecc.)
+            # 'H_hyp': None,                      # Initial energy for hyperbolic orbits
+            # 'j_hyp': None,                      # Initial angular momentum for hyperbolic orbits
+            }
+
+        rm_none = {k: v for k, v in defaults.items() if v is not None}
+        defaults.clear()
+        defaults.update(rm_none)
+        defaults.update(pars)
+        pars = defaults.copy()
+        return pars
+    
+    def calculate_frequency_domain_strain(self):
+
+        pars = self.teobresums_params()
+        
+        t, Hp, Hc = EOBRun_module.EOBRunPy(pars)
+        print(pars)
+
+        dt = t[1] - t[0]
+
+        tmp_hp = TimeSeries(Hp, delta_t=dt)
+        tmp_hc = TimeSeries(Hc, delta_t=dt)
+
+        if pars['taper']:
+            hp = utils.taper_timeseries(tmp_hp, tapermethod='TAPER_STARTEND', return_lal=False)  
+            hc = utils.taper_timeseries(tmp_hc, tapermethod='TAPER_STARTEND', return_lal=False)
+        else:
+            hp, hc = tmp_hp, tmp_hc
+
+        wf = hp + 1j*hc
+        if pars['trigger_time'] is not None:
+            epoch = pars['trigger_time'] - t[np.argmax(np.abs(wf))]
+            wf.start_time = epoch
+        
+        wfs_res = {'hp':wf.real(), 'hc':wf.imag()}
+        df = self._frequencyvector[1] - self._frequencyvector[0]
+
+        frequency_vector = self._frequencyvector
+        res = dict()
+        for k in wfs_res.keys():
+            wf = wfs_res[k]
+            ## converting TD WF -> FD WF 
+            fd_wf = wf.to_frequencyseries(delta_f=wf.delta_f)
+            ## interpolating for given freqeuncy array
+            fd_wf_arr = np.log10(np.array(fd_wf))
+            ifd_wf = interp1d(fd_wf.sample_frequencies[:], fd_wf_arr[:], kind='linear')
+            fd_wf_arr = np.concatenate(([0], 10**ifd_wf(frequency_vector[1:])))
+            #frequency_bounds = (frequency_array >=frequency_array['minimum_frequency']) * (frequency_array <= waveform_kwargs['maximum_frequency'])
+            frequency_bounds = (frequency_vector >=frequency_vector[0]) * (frequency_vector <= frequency_vector[-1])
+            fd_wf_arr *= frequency_bounds
+            res[k] = fd_wf_arr
+        
+        polarizations = self._fd_gwfish_output_format(res['hp'], res['hc'])
+        self._frequency_domain_strain = polarizations
+
+        #plotting the waveform
+        output_folder = '/home/anirudh.nemmani/Projects/GWEATFish/'
+        np.savetxt(output_folder + 'TEOBResumS.txt', np.column_stack((self._frequencyvector, np.abs(self._frequency_domain_strain[:, 0]), np.abs(self._frequency_domain_strain[:, 1]))), delimiter=',')
+        plt.figure()
+        plt.loglog(self._frequencyvector, np.abs(self._frequency_domain_strain[:, 0]), linewidth=2, color='blue', label=r'$h_+$')
+        plt.loglog(self._frequencyvector, np.abs(self._frequency_domain_strain[:, 1]), linewidth=2, color='red', label=r'$h_\times$')
+        plt.legend(fontsize=8)
+        #plt.axis(plot)
+        plt.grid(which='both', color='lightgray', alpha=0.5, linestyle='dashed', linewidth=0.5)
+        plt.xlabel(r'Frequency [Hz]')
+        plt.ylabel(r'Amplitude')
+        plt.savefig(output_folder + 'TEOBResumS.png')

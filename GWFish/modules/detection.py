@@ -371,6 +371,7 @@ def projection_earth(parameters, detector, polarizations, timevector):
 
     theta = np.pi / 2. - dec
     gmst = GreenwichMeanSiderealTime(timevector)
+    # print('ra : ', ra)
     phi = ra - gmst
 
     # wave vector components
@@ -434,7 +435,16 @@ def projection_earth(parameters, detector, polarizations, timevector):
 
         proj[:, k] *= np.exp(-1.j * phase_shift)
     # print("Calculation of projection: %s seconds" % (time.time() - start_time))
-
+    # print('Projection shape : ', proj.shape)
+    plt.figure()
+    plt.loglog(ff, np.abs(proj[:,0]), linewidth=2, color='blue', label=r'Projection')
+    plt.legend(fontsize=8)
+    #plt.axis(plot)
+    plt.grid(which='both', color='lightgray', alpha=0.5, linestyle='dashed', linewidth=0.5)
+    plt.xlabel(r'Frequency [Hz]')
+    plt.ylabel(r'Amplitude')
+    plt.title(r'Projection of the GW signal onto the detector')
+    plt.savefig('./projection.png')
     return proj
 
 
