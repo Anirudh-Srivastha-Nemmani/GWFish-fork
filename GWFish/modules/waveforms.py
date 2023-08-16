@@ -178,7 +178,6 @@ class Waveform:
                     self._frequency_domain_strain[:, i], 
                     0j
                 )
-        return self._frequency_domain_strain
         
         if self.min_frequency_cutoff is not None:
             for i in range(2):
@@ -187,6 +186,7 @@ class Waveform:
                     self._frequency_domain_strain[:, i], 
                     0j
                 )
+        return self._frequency_domain_strain
 
     def calculate_time_domain_strain(self):
         raise NotImplementedError('Time-domain strain is not implemeted'+\
