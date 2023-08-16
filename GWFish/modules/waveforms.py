@@ -5,8 +5,6 @@ import numpy as np
 import sympy as sp
 from scipy.interpolate import interp1d
 import scipy.optimize as optimize
-import sys
-sys.path.append('/home/anirudh.nemmani/git_repos/teobresums/Python/')
 try:
     import lalsimulation as lalsim
     import lal
@@ -17,11 +15,14 @@ except ModuleNotFoundError as err:
                     'Only GWFish waveforms available.')
 
 try:
+    import sys
+    sys.path.append('/home/anirudh.nemmani/git_repos/teobresums/Python/')
     import EOBRun_module
 except ModuleNotFoundError as err:
     useeobrun = err
     logging.warning('EOBRun package is not installed.'+\
-                    'Only GWFish waveforms available.')
+                    'Only GWFish waveforms available.'+\
+                    'If it is installed, please try to change the TEOBResumS module path in the "waveforms.py" file.')
 
 try:
     import pycbc
@@ -29,7 +30,7 @@ try:
     from pycbc.types import TimeSeries, FrequencySeries
 except ModuleNotFoundError as err:
     logging.warning('PyCBC package is not installed.'+\
-                    'Only GWFish waveforms available.')
+                    'Please install it as it is required to run TEOBResumS Module.')
 
 import GWFish as gw
 import GWFish.modules.constants as cst
@@ -138,10 +139,13 @@ class Waveform:
         if 'delta_t' in data_params:
             self.delta_t = delta_t
         else:
-            if ((self.gw_params['mass_1']+self.gw_params['mass_2'] > 28) and (self.gw_params['eccentricity'])<0.3): # because f_RD_BBH(m_tot=28, q=1, chi1=0.99, chi2=0.99) ~ 960 Hz, which is close to the Nyquist frequency of 1024 Hz. And for higher eccentricities, signal length reduces dramatically.
-                self.delta_t = 0.25/self.f_max
+            if 'eccentricity' in gw_params:
+                if ((self.gw_params['mass_1']+self.gw_params['mass_2'] > 28) and (self.gw_params['eccentricity'])<0.3): # because f_RD_BBH(m_tot=28, q=1, chi1=0.99, chi2=0.99) ~ 960 Hz, which is close to the Nyquist frequency of 1024 Hz. And for higher eccentricities, signal length reduces dramatically.
+                    self.delta_t = 0.25/self.f_max
+                else:
+                    # Set sampling frequency to Nyquist frequency
+                    self.delta_t = 0.5/self.f_max
             else:
-                # Set sampling frequency to Nyquist frequency
                 self.delta_t = 0.5/self.f_max
         
         if 'min_frequency_cutoff' in gw_params:
