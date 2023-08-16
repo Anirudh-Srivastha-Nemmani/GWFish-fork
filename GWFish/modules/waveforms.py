@@ -138,8 +138,16 @@ class Waveform:
         if 'delta_t' in data_params:
             self.delta_t = delta_t
         else:
-            # Set sampling frequency to Nyquist frequency
-            self.delta_t = 0.5/self.f_max
+            if ((self.gw_params['mass_1']+self.gw_params['mass_2'] > 28) and (self.gw_params['eccentricity'])<0.3): # because f_RD_BBH(m_tot=28, q=1, chi1=0.99, chi2=0.99) ~ 960 Hz, which is close to the Nyquist frequency of 1024 Hz. And for higher eccentricities, signal length reduces dramatically.
+                self.delta_t = 0.25/self.f_max
+            else:
+                # Set sampling frequency to Nyquist frequency
+                self.delta_t = 0.5/self.f_max
+        
+        if 'min_frequency_cutoff' in gw_params:
+            self.min_frequency_cutoff = gw_params['min_frequency_cutoff']
+        else:
+            self.min_frequency_cutoff = None
         
         if 'max_frequency_cutoff' in gw_params:
             self.max_frequency_cutoff = gw_params['max_frequency_cutoff']
@@ -167,6 +175,14 @@ class Waveform:
                     0j
                 )
         return self._frequency_domain_strain
+        
+        if self.min_frequency_cutoff is not None:
+            for i in range(2):
+                self._frequency_domain_strain[:, i] = np.where(
+                    self.frequencyvector >= self.min_frequency_cutoff, 
+                    self._frequency_domain_strain[:, i], 
+                    0j
+                )
 
     def calculate_time_domain_strain(self):
         raise NotImplementedError('Time-domain strain is not implemeted'+\
@@ -1193,8 +1209,8 @@ class TEOBResumS(Waveform):
             
             # ## ODE
             # 'ode_timestep' : None,              # ODE timestep model. Options: ['adaptive', 'uniform', 'adaptive+uniform_after_LSO']
-            # 'ode_abstol' : None,                # Absolute numerical tolerance.       Default: 1e-13
-            # 'ode_reltol' : None,                # Relative numerical tolerance.       Default: 1e-11
+            'ode_abstol' : 1e-8,                # Absolute numerical tolerance.       Default: 1e-13
+            'ode_reltol' : 1e-7,                # Relative numerical tolerance.       Default: 1e-11
             # 'ode_tmax' : None,                  # Maximum integration time.           Default: 1e9
             # 'ode_stop_radius' : None,           # Stop ODE evoluation at this r.      Default: 1.0
             # 'ode_stop_afterNdt' : None,         # Stop ODE evoluation N iterations
@@ -1261,9 +1277,10 @@ class TEOBResumS(Waveform):
     def calculate_frequency_domain_strain(self):
 
         pars = self.teobresums_params()
+        for key in pars.keys():
+            print('%s : %s' %(key, pars[key]))
         
         t, Hp, Hc = EOBRun_module.EOBRunPy(pars)
-        print(pars)
 
         dt = t[1] - t[0]
 
@@ -1285,11 +1302,13 @@ class TEOBResumS(Waveform):
         df = self._frequencyvector[1] - self._frequencyvector[0]
 
         frequency_vector = self._frequencyvector
+        # print('frequency vector last element: ', frequency_vector[-1])
         res = dict()
         for k in wfs_res.keys():
             wf = wfs_res[k]
             ## converting TD WF -> FD WF 
             fd_wf = wf.to_frequencyseries(delta_f=wf.delta_f)
+            # print('waveforms last frequency element: ', fd_wf.sample_frequencies[-1])
             ## interpolating for given freqeuncy array
             fd_wf_arr = np.log10(np.array(fd_wf))
             ifd_wf = interp1d(fd_wf.sample_frequencies[:], fd_wf_arr[:], kind='linear')
@@ -1302,15 +1321,15 @@ class TEOBResumS(Waveform):
         polarizations = self._fd_gwfish_output_format(res['hp'], res['hc'])
         self._frequency_domain_strain = polarizations
 
-        #plotting the waveform
-        output_folder = '/home/anirudh.nemmani/Projects/GWEATFish/'
-        np.savetxt(output_folder + 'TEOBResumS.txt', np.column_stack((self._frequencyvector, np.abs(self._frequency_domain_strain[:, 0]), np.abs(self._frequency_domain_strain[:, 1]))), delimiter=',')
-        plt.figure()
-        plt.loglog(self._frequencyvector, np.abs(self._frequency_domain_strain[:, 0]), linewidth=2, color='blue', label=r'$h_+$')
-        plt.loglog(self._frequencyvector, np.abs(self._frequency_domain_strain[:, 1]), linewidth=2, color='red', label=r'$h_\times$')
-        plt.legend(fontsize=8)
-        #plt.axis(plot)
-        plt.grid(which='both', color='lightgray', alpha=0.5, linestyle='dashed', linewidth=0.5)
-        plt.xlabel(r'Frequency [Hz]')
-        plt.ylabel(r'Amplitude')
-        plt.savefig(output_folder + 'TEOBResumS.png')
+        # #plotting the waveform
+        # output_folder = '/home/anirudh.nemmani/Projects/GWEATFish/'
+        # np.savetxt(output_folder + 'TEOBResumS.txt', np.column_stack((self._frequencyvector, self._frequency_domain_strain[:, 0], self._frequency_domain_strain[:, 1])), delimiter=',')
+        # plt.figure()
+        # plt.loglog(self._frequencyvector, np.abs(self._frequency_domain_strain[:, 0]), linewidth=2, color='blue', label=r'$h_+$')
+        # plt.loglog(self._frequencyvector, np.abs(self._frequency_domain_strain[:, 1]), linewidth=2, color='red', label=r'$h_\times$')
+        # plt.legend(fontsize=8)
+        # #plt.axis(plot)
+        # plt.grid(which='both', color='lightgray', alpha=0.5, linestyle='dashed', linewidth=0.5)
+        # plt.xlabel(r'Frequency [Hz]')
+        # plt.ylabel(r'Amplitude')
+        # plt.savefig(output_folder + 'TEOBResumS.png')

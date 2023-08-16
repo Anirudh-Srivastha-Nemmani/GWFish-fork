@@ -436,15 +436,15 @@ def projection_earth(parameters, detector, polarizations, timevector):
         proj[:, k] *= np.exp(-1.j * phase_shift)
     # print("Calculation of projection: %s seconds" % (time.time() - start_time))
     # print('Projection shape : ', proj.shape)
-    plt.figure()
-    plt.loglog(ff, np.abs(proj[:,0]), linewidth=2, color='blue', label=r'Projection')
-    plt.legend(fontsize=8)
-    #plt.axis(plot)
-    plt.grid(which='both', color='lightgray', alpha=0.5, linestyle='dashed', linewidth=0.5)
-    plt.xlabel(r'Frequency [Hz]')
-    plt.ylabel(r'Amplitude')
-    plt.title(r'Projection of the GW signal onto the detector')
-    plt.savefig('./projection.png')
+    # plt.figure()
+    # plt.loglog(ff, np.abs(proj[:,0]), linewidth=2, color='blue', label=r'Projection')
+    # plt.legend(fontsize=8)
+    # #plt.axis(plot)
+    # plt.grid(which='both', color='lightgray', alpha=0.5, linestyle='dashed', linewidth=0.5)
+    # plt.xlabel(r'Frequency [Hz]')
+    # plt.ylabel(r'Amplitude')
+    # plt.title(r'Projection of the GW signal onto the detector')
+    # plt.savefig('./projection.png')
     return proj
 
 
@@ -706,7 +706,10 @@ def analyzeDetections(network, parameters, population, networks_ids):
 
 def time_of_fmax(timevector, frequencyvector, fmax):
     try:
-        return timevector[np.searchsorted(frequencyvector[:, 0], fmax)]
+        if frequencyvector[-1] < fmax:
+            return timevector[np.searchsorted(frequencyvector[:, 0], frequencyvector[-1])]
+        else:
+            return timevector[np.searchsorted(frequencyvector[:, 0], fmax)]
     except IndexError as e:
         raise ValueError("The max_frequency given was not found in the frequency vector - "
                          "it might be outside the detector band.") from e
