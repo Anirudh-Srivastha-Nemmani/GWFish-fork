@@ -134,7 +134,7 @@ class Detector:
         detector_def = doc[self.name]
 
         self.plotrange = np.fromstring(detector_def['plotrange'], dtype=float, sep=',')
-
+        
         fmin = eval(str(detector_def['fmin']))
         fmax = eval(str(detector_def['fmax']))
         spacing = str(detector_def['spacing'])

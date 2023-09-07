@@ -23,14 +23,21 @@ except ModuleNotFoundError as err:
     logging.warning('EOBRun package is not installed.'+\
                     'Only GWFish waveforms available.'+\
                     'If it is installed, please try to change the TEOBResumS module path in the "waveforms.py" file.')
-
+# try:
+#     sys.path.append('/home/anirudh.nemmani/git_repos/gweat/src/')
+#     import TEOBResumS_utils as gweat
+# except ModuleNotFoundError as err:
+#     usegweat = err
+#     logging.warning('GWEAT package is not installed.'+\
+#                     'Time domain TEOBResumS implementation does not work.'+\
+#                     'If it is installed, please try to change the GWEAT module path in the "waveforms.py" file.')
 try:
     import pycbc
     from pycbc.waveform import utils
     from pycbc.types import TimeSeries, FrequencySeries
 except ModuleNotFoundError as err:
     logging.warning('PyCBC package is not installed.'+\
-                    'Please install it as it is required to run TEOBResumS Module.')
+                    'Please install it, as it is required to run TEOBResumS Module.')
 
 import GWFish as gw
 import GWFish.modules.constants as cst
@@ -137,10 +144,14 @@ class Waveform:
             self.frequencyvector = None
 
         if 'delta_t' in data_params:
-            self.delta_t = delta_t
+            self.delta_t = data_params['delta_t']
         else:
             if 'eccentricity' in gw_params:
-                if ((self.gw_params['mass_1']+self.gw_params['mass_2'] > 28) and (self.gw_params['eccentricity'])<0.3): # because f_RD_BBH(m_tot=28, q=1, chi1=0.99, chi2=0.99) ~ 960 Hz, which is close to the Nyquist frequency of 1024 Hz. And for higher eccentricities, signal length reduces dramatically.
+                if ((gw_params['mass_1']+gw_params['mass_2'] > 28) and
+                     (gw_params['eccentricity'])<0.3): 
+                    # because f_RD_BBH(m_tot=28, q=1, chi1=0.99, chi2=0.99) ~ 960 Hz, 
+                    # which is close to the Nyquist frequency of 1024 Hz. 
+                    # For higher eccentricities, signal length reduces dramatically.
                     self.delta_t = 0.25/self.f_max
                 else:
                     # Set sampling frequency to Nyquist frequency
@@ -159,7 +170,11 @@ class Waveform:
             self.max_frequency_cutoff = None
 
     def __call__(self):
-        """ Return frequency-domain polarization modes """
+        """ Return frequency-domain polarization modes or a time-domain strain."""
+        # if 'eccentricity' in self.gw_params:
+        #     return self.time_domain_strain
+        # else:
+        #     return self.frequency_domain_strain
         return self.frequency_domain_strain
 
     def calculate_frequency_domain_strain(self):
@@ -202,6 +217,9 @@ class Waveform:
     def time_domain_strain(self):
         if self._time_domain_strain is None:
             self.calculate_time_domain_strain()
+        # if 'eccentricity' in self.gw_params:
+        #     return self._time_domain_strain
+        # else:
         return self._frequency_domain_strain
 
     def _set_default_gw_params(self):
@@ -1067,14 +1085,9 @@ class IMRPhenomD(Waveform):
 
 class TEOBResumS(Waveform):
     """
-    Our implementation of TEOBResumS 
-
-    This is made from GWEAT by Anuj Mishra. Link to GWEAT package is https://gitlab.com/anuj137/GWEAT
-
-    Link to TEOBResumS - https://bitbucket.org/eob_ihes/teobresums/src/master/PyCBC/teobresums.py
-    
-    Author - Anirudh S. Nemmani
+    Implementation of TEOBResumS waveform
     """
+    
     def __init__(self, name, gw_params, data_params):
         super().__init__(name, gw_params, data_params)
         self._maxn = None
@@ -1082,11 +1095,11 @@ class TEOBResumS(Waveform):
         if self.name != 'TEOBResumS':
             logging.warning('Different waveform name passed to TEOBResumS: '+\
                              self.name)
-    
+        
     def modes_to_k(self, modes):
         """ Map (l, m) to linear index """
         return sorted([int(x[0]*(x[0]-1)/2 + x[1]-2) for x in modes])
-
+        
     def _fd_gwfish_output_format(self, hfp, hfc):
 
         hfp = hfp[:, np.newaxis]
@@ -1095,7 +1108,7 @@ class TEOBResumS(Waveform):
         polarizations = np.hstack((hfp, hfc))
 
         return polarizations
-
+    
     def teobresums_params(self):
 
         initial_defaults = dict(mode_array=None, taper=True)
@@ -1106,10 +1119,10 @@ class TEOBResumS(Waveform):
         lambda1     = self.gw_params['lambda_1']
         lambda2     = self.gw_params['lambda_2']
         distance    = self.gw_params['luminosity_distance']
-        inclination = self.gw_params['theta_jn']
+        theta_jn = self.gw_params['theta_jn']
         coa_phase   = self.gw_params['phase']
         ecc         = self.gw_params['eccentricity']
-        spin_input_params = {'theta_jn': inclination,
+        spin_input_params = {'theta_jn': theta_jn,
                              'phi_jl': self.gw_params['phi_jl'],
                              'tilt_1': 0,
                              'tilt_2': 0,
@@ -1173,12 +1186,10 @@ class TEOBResumS(Waveform):
                                    
             ## Extrinsic parameters
             'distance' : distance,               # Distance of the source from Earth [Mpc] 
-            'inclination' : inclination,         # Angle between the observer and the orbital angular momentum at the initial time [radians]
+            'inclination' : self.gw_params['iota'],         # Angle between the observer and the orbital angular momentum at the initial time [radians]
             'coalescence_angle' : coa_phase,     # Azimuthal angle entering the spherical harmonics decomposition [radians]; reference angle/phase at coalescence  
             'trigger_time' : self.gw_params['geocent_time'],      # time at the maximum strain amplitude; default=0 just like PyCBC timeseries.
-            'ra' : self.gw_params['ra'],
-            'dec' : self.gw_params['dec'],
-            'psi' : self.gw_params['psi'],
+            #'polarization' : self.gw_params['psi'],
             
             ## Waveform settings
             'domain' : 0,                         # 0 = TD, 1 = FD
@@ -1196,7 +1207,7 @@ class TEOBResumS(Waveform):
             'dt_interp': None,                  # In geometric unit. Default: 0.5
             'interp_uniform_grid':interp_uniform_grid,
             
-            'df': self._frequencyvector[1] - self._frequencyvector[0], # Frequency spacing for TEOBResumSPA, in the same units as initial_frequency. Freq axis goes from initial_frequency to srate_interp/2. in units of df.
+            #'df': self._frequencyvector[1] - self._frequencyvector[0], # Frequency spacing for TEOBResumSPA, in the same units as initial_frequency. Freq axis goes from initial_frequency to srate_interp/2. in units of df.
             # 'interp_freqs': None,   # Flag to use a user-input list of frequency to interpolate TEOBResumSPA. Overrides df.
             # 'freqs': None,                # List of frequencies required by interp_freqs
             
@@ -1213,8 +1224,8 @@ class TEOBResumS(Waveform):
             
             # ## ODE
             # 'ode_timestep' : None,              # ODE timestep model. Options: ['adaptive', 'uniform', 'adaptive+uniform_after_LSO']
-            'ode_abstol' : 1e-8,                # Absolute numerical tolerance.       Default: 1e-13
-            'ode_reltol' : 1e-7,                # Relative numerical tolerance.       Default: 1e-11
+            #'ode_abstol' : 1e-8,                # Absolute numerical tolerance.       Default: 1e-13
+            #'ode_reltol' : 1e-7,                # Relative numerical tolerance.       Default: 1e-11
             # 'ode_tmax' : None,                  # Maximum integration time.           Default: 1e9
             # 'ode_stop_radius' : None,           # Stop ODE evoluation at this r.      Default: 1.0
             # 'ode_stop_afterNdt' : None,         # Stop ODE evoluation N iterations
@@ -1281,8 +1292,6 @@ class TEOBResumS(Waveform):
     def calculate_frequency_domain_strain(self):
 
         pars = self.teobresums_params()
-        for key in pars.keys():
-            print('%s : %s' %(key, pars[key]))
         
         t, Hp, Hc = EOBRun_module.EOBRunPy(pars)
 
@@ -1306,34 +1315,151 @@ class TEOBResumS(Waveform):
         df = self._frequencyvector[1] - self._frequencyvector[0]
 
         frequency_vector = self._frequencyvector
-        # print('frequency vector last element: ', frequency_vector[-1])
+        
+        """
+        We are interpolating the obtained waveform to a given frequency vector.
+
+        This interpolation is not done as a straightforward interpolation of the waveform;
+        rather, the frequency series is broken down into absolute strain and unwrapped phase
+        (polar coordinate frame) and then interpolated individually.
+
+        The reason for interpolation in unwrapped phase is due to its linearity with frequency
+        and is the best description of a waveform.
+        """
+        
         res = dict()
-        for k in wfs_res.keys():
-            wf = wfs_res[k]
-            ## converting TD WF -> FD WF 
-            fd_wf = wf.to_frequencyseries(delta_f=wf.delta_f)
-            # print('waveforms last frequency element: ', fd_wf.sample_frequencies[-1])
-            ## interpolating for given freqeuncy array
-            fd_wf_arr = np.log10(np.array(fd_wf))
-            ifd_wf = interp1d(fd_wf.sample_frequencies[:], fd_wf_arr[:], kind='linear')
-            fd_wf_arr = np.concatenate(([0], 10**ifd_wf(frequency_vector[1:])))
-            #frequency_bounds = (frequency_array >=frequency_array['minimum_frequency']) * (frequency_array <= waveform_kwargs['maximum_frequency'])
-            frequency_bounds = (frequency_vector >=frequency_vector[0]) * (frequency_vector <= frequency_vector[-1])
-            fd_wf_arr *= frequency_bounds
-            res[k] = fd_wf_arr
+        for key in wfs_res.keys():
+            
+            #Converting Time-domain to frequency domain
+            freq = wfs_res[key].to_frequencyseries(delta_f=wfs_res[key].delta_f)
+
+            # Getting the strain data
+            strain_array = np.array(freq, dtype=np.complex128)
+
+            # Calculating the absolute value
+            absolute = np.abs(strain_array)
+
+            # Getting the unwrapped phase
+            phase = np.array(pycbc.waveform.utils.phase_from_frequencyseries(freq))
+
+            # Generating the interpolation function
+            if_abs = interp1d(freq.sample_frequencies[:], absolute[:], kind='linear')
+            if_phase = interp1d(freq.sample_frequencies[:], phase[:], kind='linear')
+
+            # Generating interpolated points based on the given frequency vector
+            interpolated_abs = np.concatenate(([0], if_abs(frequency_vector[1:])))
+            interpolated_phase = np.concatenate(([0], if_phase(frequency_vector[1:])))
+
+            # Joining the absolute and phase values back to strain
+            interpolated = interpolated_abs * np.exp(1j * interpolated_phase)
+
+            # Applying boundary conditions of the frequency vector
+            frequency_bounds = (frequency_vector >= frequency_vector[0]) * (frequency_vector <= frequency_vector[-1])
+            interpolated *= frequency_bounds
+
+            assert len(interpolated) == len(frequency_vector), 'length mismatch between the required frequency array and TEOBResumS output'
+
+            res[key] = interpolated
         
         polarizations = self._fd_gwfish_output_format(res['hp'], res['hc'])
         self._frequency_domain_strain = polarizations
 
-        # #plotting the waveform
-        # output_folder = '/home/anirudh.nemmani/Projects/GWEATFish/'
-        # np.savetxt(output_folder + 'TEOBResumS.txt', np.column_stack((self._frequencyvector, self._frequency_domain_strain[:, 0], self._frequency_domain_strain[:, 1])), delimiter=',')
-        # plt.figure()
-        # plt.loglog(self._frequencyvector, np.abs(self._frequency_domain_strain[:, 0]), linewidth=2, color='blue', label=r'$h_+$')
-        # plt.loglog(self._frequencyvector, np.abs(self._frequency_domain_strain[:, 1]), linewidth=2, color='red', label=r'$h_\times$')
-        # plt.legend(fontsize=8)
-        # #plt.axis(plot)
-        # plt.grid(which='both', color='lightgray', alpha=0.5, linestyle='dashed', linewidth=0.5)
-        # plt.xlabel(r'Frequency [Hz]')
-        # plt.ylabel(r'Amplitude')
-        # plt.savefig(output_folder + 'TEOBResumS.png')
+#         #plotting the waveform
+#         output_folder = '/home/anirudh.nemmani/Projects/GWEATFish/'
+#         np.savetxt(output_folder + 'TEOBResumS.txt', np.column_stack((self._frequencyvector, self._frequency_domain_strain[:, 0], self._frequency_domain_strain[:, 1])))
+#         # Plotting Interpolated waveform
+#         fig = plt.figure(figsize=(18, 6))
+#         plt.subplots_adjust(wspace= 0.1, hspace= 0.25)
+
+#         sub_figure_1 = fig.add_subplot(1,2,1)
+#         sub_figure_1.loglog(self._frequencyvector, np.abs(self._frequency_domain_strain[:, 0]), label=r'$h_{+}$')
+#         sub_figure_1.loglog(self._frequencyvector, np.abs(self._frequency_domain_strain[:, 1]), label=r'$h_{\times}$', linestyle='dashed')
+#         sub_figure_1.set_title(r'Absolute value of the frequency series')
+#         sub_figure_1.set_xlabel(r'Frequency ($Hz$)')
+#         sub_figure_1.set_xlim(self._frequencyvector[0], self._frequencyvector[-1])
+#         sub_figure_1.set_ylabel(r'$\mid h \mid$')
+#         sub_figure_1.legend()
+
+#         sub_figure_2 = fig.add_subplot(1,2,2)
+#         sub_figure_2.plot(self._frequencyvector, np.angle(self._frequency_domain_strain[:, 0]), label=r'$h_{+}$')
+#         # sub_figure_2.plot(self._frequencyvector, np.angle(self._frequency_domain_strain[:, 1]), label=r'$h_{\times}$')
+#         sub_figure_2.set_title(r'Phase value of the frequency series')
+#         sub_figure_2.set_xlabel(r'Frequency ($Hz$)')
+#         sub_figure_2.set_xscale('log')
+#         sub_figure_2.set_xlim(self._frequencyvector[0], self._frequencyvector[-1])
+#         sub_figure_2.set_ylabel(r'Phase')
+#         sub_figure_2.legend()
+#         plt.savefig(output_folder + 'TEOBResumS.png')
+    
+
+
+# class TEOBResumS_time(Waveform):
+#     """
+#     Implementation of TEOBResumS waveform
+
+#     Note - This class is made to do GWFish calculations in the time domain,
+#     and it will be converted to the frequency domain after the projections.
+
+#     This class uses GWEAT by Anuj Mishra. Link to GWEAT package is
+#     https://gitlab.com/anuj137/GWEAT
+
+#     Link to TEOBResumS - https://bitbucket.org/eob_ihes/teobresums/src/master/PyCBC/teobresums.py
+
+#     Author - Anirudh S. Nemmani
+#     """
+
+#     def __init__(self, name, gw_params, data_params):
+#         super().__init__(name, gw_params, data_params)
+#         self._maxn = None
+#         self.psi = None
+#         if self.name != 'TEOBResumS':
+#             logging.warning('Different waveform name passed to TEOBResumS: '+\
+#                              self.name)
+    
+#     def calculate_frequency_domain_strain(self):
+#         raise NotImplementedError('Frequency-domain strain is not'+\
+#                                   'implemented in this class')
+    
+
+#     def teobresums_params(self):
+
+#         init_params = dict(mode_array=None, taper=True)
+#         freq_params = dict(f_start=self.f_min, f_low=self.f_min, srate=1./self.delta_t, df=self.delta_f)
+#         cbc_params = dict(mass_1=self.gw_params['mass_1'], mass_2=self.gw_params['mass_2'],lambda_1=self.gw_params['lambda_1'], 
+#                           lambda_2=self.gw_params['lambda_2'], distance=self.gw_params['luminosity_distance'], coa_phase=self.gw_params['phase'], 
+#                           ecc=self.gw_params['eccentricity'], trigger_time=self.gw_params['geocent_time'])
+#         spin_input_params = {'theta_jn': self.gw_params['theta_jn'],
+#                              'phi_jl': self.gw_params['phi_jl'],
+#                              'tilt_1': 0,
+#                              'tilt_2': 0,
+#                              'phi_12': self.gw_params['phi_12'],
+#                              'a_1': self.gw_params['a_1'],
+#                              'a_2': self.gw_params['a_2'],
+#                              'mass_1': self.gw_params['mass_1'],
+#                              'mass_2': self.gw_params['mass_2'],
+#                              'phase': self.gw_params['phase']}
+
+#         self.gw_params['iota'], self.gw_params['spin_1x'], \
+#             self.gw_params['spin_1y'], self.gw_params['spin_1z'], \
+#             self.gw_params['spin_2x'], self.gw_params['spin_2y'], \
+#             self.gw_params['spin_2z'] = bilby_to_lalsimulation_spins(\
+#             reference_frequency=self.f_ref, **spin_input_params)
+        
+#         spin_params = dict(inclination=self.gw_params['iota'], chi1z=self.gw_params['spin_1z'], chi2z=self.gw_params['spin_2z'])
+
+#         prms = {**init_params, **freq_params, **cbc_params, **spin_params}
+#         params = gweat.teobresums_pars_update(prms)
+#         return params
+    
+#     def calculate_time_domain_strain(self):
+        
+#         params = self.teobresums_params()
+#         htp, htc = gweat.teobresums_td_pure_polarized_wf_gen(**params)
+
+#         self.sample_times = htp.sample_times
+#         htp = htp[:, np.newaxis]
+#         htc = htc[:, np.newaxis]
+
+#         polarizations = np.hstack((htp, htc))
+    
+#         self._time_domain_strain = polarizations
