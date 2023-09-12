@@ -6,6 +6,16 @@ from pathlib import Path
 
 import GWFish.modules.constants as cst
 
+import os
+import shutil
+
+path = os.getcwd()
+if os.path.exists(path+"/outdir") is True:
+    shutil.rmtree(path+"/outdir")
+
+os.mkdir(path+"/outdir")
+
+
 DEFAULT_CONFIG = Path(__file__).parent.parent / 'detectors.yaml'
 PSD_PATH = Path(__file__).parent.parent / 'detector_psd'
 
@@ -104,7 +114,7 @@ class DetectorComponent:
             plt.ylabel('Strain noise')
             plt.grid(True)
             plt.tight_layout()
-            plt.savefig('Sensitivity_' + self.name + '.png')
+            plt.savefig('outdir/Sensitivity_' + self.name + '.png')
             plt.close()
 
 class Detector:
@@ -451,7 +461,7 @@ def projection_earth(parameters, detector, polarizations, timevector):
     # plt.xlabel(r'Frequency [Hz]')
     # plt.ylabel(r'Amplitude')
     # plt.title(r'Projection of the GW signal onto the detector')
-    # plt.savefig('./projection.png')
+    # plt.savefig('./outdir/projection.png')
     return proj
 
 
@@ -484,8 +494,8 @@ def projection_moon(parameters, detector, polarizations, timevector):
     phi = ra - lmst
 
     # saving timevector and lmst for plotting
-    # np.save('timevector.npy', timevector)
-    # np.save('lmst.npy', lmst)
+    # np.save('outdir/timevector.npy', timevector)
+    # np.save('outdir/lmst.npy', lmst)
 
     # start_time = time.time()
     # u = np.array([np.cos(theta) * np.cos(phi[:,0]), np.cos(theta) * np.sin(phi[:,0]), -np.sin(theta)*np.ones_like(phi[:,0])])
@@ -577,7 +587,7 @@ def lisaGWresponse(detector):
     plt.grid(True)
     plt.legend(['A', 'E', 'T'])
     plt.tight_layout()
-    plt.savefig('ResponseGW_' + detector.name + '.png')
+    plt.savefig('outdir/ResponseGW_' + detector.name + '.png')
     plt.close()
 
     N = 10000
@@ -612,7 +622,7 @@ def lisaGWresponse(detector):
     plt.grid(True)
     plt.legend(['A', 'E', 'T', 'combined'])
     plt.tight_layout()
-    plt.savefig('Sensitivity_Skyav_GW_' + detector.name + '.png')
+    plt.savefig('outdir/Sensitivity_Skyav_GW_' + detector.name + '.png')
     plt.close()
 
 
@@ -640,8 +650,8 @@ def SNR(detector, signals, duty_cycle=False, plot=None):
             plt.ylim((plotrange[2], plotrange[3]))
             plt.grid(True)
             plt.tight_layout()
-            #plt.savefig('SignalNoise_' + str(components[k].name) + '_' + plot + '.png')
-            plt.savefig('SignalNoise_' + str(components[k].name) + '.png')
+            #plt.savefig('outdir/SignalNoise_' + str(components[k].name) + '_' + plot + '.png')
+            plt.savefig('outdir/SignalNoise_' + str(components[k].name) + '.png')
             plt.close()
 
             plt.figure()
@@ -651,8 +661,8 @@ def SNR(detector, signals, duty_cycle=False, plot=None):
             plt.xlim((plotrange[0], plotrange[1]))
             plt.grid(True)
             plt.tight_layout()
-            #plt.savefig('SNR_density_' + str(components[k].name) + '_' + plot + '.png')
-            plt.savefig('SNR_density_' + str(components[k].name) + '.png')
+            #plt.savefig('outdir/SNR_density_' + str(components[k].name) + '_' + plot + '.png')
+            plt.savefig('outdir/SNR_density_' + str(components[k].name) + '.png')
             plt.close()
 
         # set SNRs to zero if interferometer is not operating (according to its duty factor [0,1])
@@ -708,10 +718,10 @@ def analyzeDetections(network, parameters, population, networks_ids):
         print('SNR: {:.3f} (min) , {:.3f} (max) '.format(np.min(SNR), np.max(SNR)))
 
     if 'id' in parameters.columns:
-        np.savetxt('Signals_' + population + '.txt', save_data, delimiter=' ', fmt='%s '+"%.3f "*(len(save_data[0,:])-1),
+        np.savetxt('outdir/Signals_' + population + '.txt', save_data, delimiter=' ', fmt='%s '+"%.3f "*(len(save_data[0,:])-1),
                    header=header, comments='')
     else:
-        np.savetxt('Signals_' + population + '.txt', save_data, delimiter=' ', fmt='%.3f', header=header, comments='')
+        np.savetxt('outdir/Signals_' + population + '.txt', save_data, delimiter=' ', fmt='%.3f', header=header, comments='')
 
 def time_of_fmax(timevector, frequencyvector, fmax):
     try:
