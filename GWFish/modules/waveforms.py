@@ -1124,8 +1124,8 @@ class TEOBResumS(Waveform):
         ecc         = self.gw_params['eccentricity']
         spin_input_params = {'theta_jn': theta_jn,
                              'phi_jl': self.gw_params['phi_jl'],
-                             'tilt_1': 0,
-                             'tilt_2': 0,
+                             'tilt_1': self.gw_params['tilt_1'],
+                             'tilt_2': self.gw_params['tilt_2'],
                              'phi_12': self.gw_params['phi_12'],
                              'a_1': self.gw_params['a_1'],
                              'a_2': self.gw_params['a_2'],
@@ -1390,76 +1390,3 @@ class TEOBResumS(Waveform):
 #         sub_figure_2.set_ylabel(r'Phase')
 #         sub_figure_2.legend()
 #         plt.savefig(output_folder + 'TEOBResumS.png')
-    
-
-
-# class TEOBResumS_time(Waveform):
-#     """
-#     Implementation of TEOBResumS waveform
-
-#     Note - This class is made to do GWFish calculations in the time domain,
-#     and it will be converted to the frequency domain after the projections.
-
-#     This class uses GWEAT by Anuj Mishra. Link to GWEAT package is
-#     https://gitlab.com/anuj137/GWEAT
-
-#     Link to TEOBResumS - https://bitbucket.org/eob_ihes/teobresums/src/master/PyCBC/teobresums.py
-
-#     Author - Anirudh S. Nemmani
-#     """
-
-#     def __init__(self, name, gw_params, data_params):
-#         super().__init__(name, gw_params, data_params)
-#         self._maxn = None
-#         self.psi = None
-#         if self.name != 'TEOBResumS':
-#             logging.warning('Different waveform name passed to TEOBResumS: '+\
-#                              self.name)
-    
-#     def calculate_frequency_domain_strain(self):
-#         raise NotImplementedError('Frequency-domain strain is not'+\
-#                                   'implemented in this class')
-    
-
-#     def teobresums_params(self):
-
-#         init_params = dict(mode_array=None, taper=True)
-#         freq_params = dict(f_start=self.f_min, f_low=self.f_min, srate=1./self.delta_t, df=self.delta_f)
-#         cbc_params = dict(mass_1=self.gw_params['mass_1'], mass_2=self.gw_params['mass_2'],lambda_1=self.gw_params['lambda_1'], 
-#                           lambda_2=self.gw_params['lambda_2'], distance=self.gw_params['luminosity_distance'], coa_phase=self.gw_params['phase'], 
-#                           ecc=self.gw_params['eccentricity'], trigger_time=self.gw_params['geocent_time'])
-#         spin_input_params = {'theta_jn': self.gw_params['theta_jn'],
-#                              'phi_jl': self.gw_params['phi_jl'],
-#                              'tilt_1': 0,
-#                              'tilt_2': 0,
-#                              'phi_12': self.gw_params['phi_12'],
-#                              'a_1': self.gw_params['a_1'],
-#                              'a_2': self.gw_params['a_2'],
-#                              'mass_1': self.gw_params['mass_1'],
-#                              'mass_2': self.gw_params['mass_2'],
-#                              'phase': self.gw_params['phase']}
-
-#         self.gw_params['iota'], self.gw_params['spin_1x'], \
-#             self.gw_params['spin_1y'], self.gw_params['spin_1z'], \
-#             self.gw_params['spin_2x'], self.gw_params['spin_2y'], \
-#             self.gw_params['spin_2z'] = bilby_to_lalsimulation_spins(\
-#             reference_frequency=self.f_ref, **spin_input_params)
-        
-#         spin_params = dict(inclination=self.gw_params['iota'], chi1z=self.gw_params['spin_1z'], chi2z=self.gw_params['spin_2z'])
-
-#         prms = {**init_params, **freq_params, **cbc_params, **spin_params}
-#         params = gweat.teobresums_pars_update(prms)
-#         return params
-    
-#     def calculate_time_domain_strain(self):
-        
-#         params = self.teobresums_params()
-#         htp, htc = gweat.teobresums_td_pure_polarized_wf_gen(**params)
-
-#         self.sample_times = htp.sample_times
-#         htp = htp[:, np.newaxis]
-#         htc = htc[:, np.newaxis]
-
-#         polarizations = np.hstack((htp, htc))
-    
-#         self._time_domain_strain = polarizations

@@ -147,6 +147,8 @@ class Detector:
             self.frequencyvector = np.geomspace(fmin, fmax, num=int(npoints))
 
         self.frequencyvector = self.frequencyvector[:, np.newaxis]
+        
+        self.derivative_vector = np.zeros((len(parameters), nd, len(self.frequencyvector)), dtype=np.complex128)
 
         if detector_def['detector_class'] == 'lunararray':
             self.location = 'moon'

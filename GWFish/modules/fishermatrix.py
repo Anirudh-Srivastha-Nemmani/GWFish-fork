@@ -4,6 +4,7 @@ import GWFish.modules.detection as det
 import GWFish.modules.auxiliary as aux
 import GWFish.modules.fft as fft
 
+import pickle
 import copy
 
 def invertSVD(matrix):
@@ -152,18 +153,22 @@ class Derivative:
         return self.with_respect_to(target_parameter)
 
 class FisherMatrix:
-    def __init__(self, waveform, parameters, fisher_parameters, detector, eps=1e-5, waveform_class=wf.Waveform):
+    def __init__(self, waveform, parameters, fisher_parameters, detector, eps=1e-5, waveform_class=wf.Waveform, store_derivative_vectors=True):
         self.fisher_parameters = fisher_parameters
         self.detector = detector
         self.derivative = Derivative(waveform, parameters, detector, eps=eps, waveform_class=waveform_class)
+        self.store_derivative_vectors = store_derivative_vectors
+        self.derivative_vector = None
         self.nd = len(fisher_parameters)
         self.fm = None
 
     def update_fm(self):
         self._fm = np.zeros((self.nd, self.nd))
+        self._derivative_vector = np.zeros((self.nd, len(self.detector.frequencyvector)), dtype=np.complex128)
         for p1 in np.arange(self.nd):
             deriv1_p = self.fisher_parameters[p1]
             deriv1 = self.derivative(deriv1_p)
+            self._derivative_vector[p1] = deriv1.T
             self._fm[p1, p1] = np.sum(aux.scalar_product(deriv1, deriv1, self.detector), axis=0)
             for p2 in np.arange(p1+1, self.nd):
                 deriv2_p = self.fisher_parameters[p2]
@@ -175,14 +180,28 @@ class FisherMatrix:
     def fm(self):
         if self._fm is None:
             self.update_fm()
-        return self._fm
+        return self._fm, self._derivative_vector
+    
+    # @property
+    # def derivative_vector(self):
+    #     if self._derivative_vector is None:
+    #         self.update_fm()
+    #     return self._derivative_vector
 
     @fm.setter
     def fm(self, hardcode_fm):
         self._fm = hardcode_fm
-
+    
+    # @derivative_vector.setter
+    # def derivative_vector(self, hardcode_derivative_vector):
+    #     self._derivative_vector = hardcode_derivative_vector
+    
     def __call__(self):
         return self.fm
+    # def __call__(self):
+    #     if not self.store_derivative_vectors:
+    #         return self.fm
+    #     return self.fm, self.derivative_vector
 
 def analyzeFisherErrors(network, parameter_values, fisher_parameters, population, networks_ids):
     """
@@ -211,6 +230,52 @@ def analyzeFisherErrors(network, parameter_values, fisher_parameters, population
     network_names = []
     for n in np.arange(N):
         network_names.append('_'.join([network.detectors[k].name for k in networks_ids[n]]))
+        
+    
+    result_pickle = {'network': {}, 'individual': {}}
+    
+    all_detectors = (network.name).split('_')
+    result_pickle['individual'] = {key: {} for key in all_detectors}
+    
+    for i in network.detectors:
+        key = i.name
+        
+        #saving the SNR values of 
+        #saving the derivative vector
+        result_pickle['individual'][key]['derivative_vector'] = i.derivative_vector
+        
+        #calculating the individual inverse fisher matrix
+        fisher_matrix = np.zeros((ns, npar, npar))
+        inverse_fisher_matrix = np.zeros((ns, npar, npar))
+        singular_values = np.zeros((ns, npar))
+        individual_parameter_errors = np.zeros((ns, npar))
+        for k in np.arange(ns):
+            single_signal_fisher = np.zeros((npar, npar))
+            
+            if i.SNR > detect_SNR[1]:
+                if npar > 0:
+                    single_signal_fisher = i.fisher_matrix[k, :, :]
+                    single_signal_inv_fisher, single_signal_S = invertSVD(single_signal_fisher)
+                    fisher_matrix[k, :, :] = single_signal_fisher
+                    inverse_fisher_matrix[k, :, :] = single_signal_inv_fisher
+                    singular_values[k, :] = single_signal_S
+                    individual_parameter_errors[k, :] = np.sqrt(np.diagonal(single_signal_inv_fisher))
+        
+        
+        jj = np.where(i.SNR > detect_SNR[1])[0]
+        fisher_matrix = fisher_matrix[jj, :, :]
+        inverse_fisher_matrix = inverse_fisher_matrix[jj, :, :]
+        singular_values = singular_values[jj, :]
+        individual_parameter_errors = individual_parameter_errors[jj, :]
+        
+        #saving the fisher matrix
+        result_pickle['individual'][key]['fisher_matrix'] = fisher_matrix
+        result_pickle['individual'][key]['inverse_fisher_matrix'] = inverse_fisher_matrix
+        result_pickle['individual'][key]['singular_values'] = singular_values
+        result_pickle['individual'][key]['errors'] = individual_parameter_errors
+        
+                    
+                    
 
     for n in np.arange(N):
         parameter_errors = np.zeros((ns, npar))
@@ -243,32 +308,44 @@ def analyzeFisherErrors(network, parameter_values, fisher_parameters, population
                         sky_localization[k] = np.pi * np.abs(np.cos(parameter_values['dec'].iloc[k])) \
                                               * np.sqrt(network_fisher_inverse[i_ra, i_ra]*network_fisher_inverse[i_dec, i_dec]
                                                         -network_fisher_inverse[i_ra, i_dec]**2)
+        
         delim = " "
         header = 'network_SNR '+delim.join(parameter_values.keys())+" "+delim.join(["err_" + x for x in fisher_parameters])
 
         ii = np.where(networkSNR > detect_SNR[1])[0]
-        save_data = np.c_[networkSNR[ii], parameter_values.iloc[ii], parameter_errors[ii, :]]
+        # save_data = np.c_[networkSNR[ii], parameter_values.iloc[ii], parameter_errors[ii, :]]
+        parameter_errors = parameter_errors[ii, :]
+        sky_localization = sky_localization[ii]
         fishers = fishers[ii, :, :]
         inv_fishers = inv_fishers[ii, :, :]
         sing_values = sing_values[ii, :]
         
-        np.save('Fishers_'+ network_names[n] + '_' + population + '_SNR' + str(detect_SNR[1]) + '.npy', fishers)
-        np.save('Inv_Fishers_'+ network_names[n] + '_' + population + '_SNR' + str(detect_SNR[1]) + '.npy', inv_fishers)
-        np.save('Sing_Values_'+ network_names[n] + '_' + population + '_SNR' + str(detect_SNR[1]) + '.npy', sing_values)
+        result_pickle['network'][network_names[n]] = {'SNR': networkSNR, 'fisher_matrix': fishers, 'inverse_fisher': inv_fishers, 
+                                                      'singular_values': sing_values, 'errors':parameter_errors}
+        
+        # np.save('Fishers_'+ network_names[n] + '_' + population + '_SNR' + str(detect_SNR[1]) + '.npy', fishers)
+        # np.save('Inv_Fishers_'+ network_names[n] + '_' + population + '_SNR' + str(detect_SNR[1]) + '.npy', inv_fishers)
+        # np.save('Sing_Values_'+ network_names[n] + '_' + population + '_SNR' + str(detect_SNR[1]) + '.npy', sing_values)
         
         if signals_havesky:
-            header += " err_sky_location"
-            save_data = np.c_[save_data, sky_localization[ii]]
+            # header += " err_sky_location"
+            # save_data = np.c_[save_data, sky_localization[ii]]
+            result_pickle['network'][network_names[n]]['err_sky_location'] = sky_localization[ii]
+            
+            
+            
         if signals_haveids:
-            header = "signal "+header
-            save_data = np.c_[signal_ids.iloc[ii], save_data]
+            # header = "signal "+header
+            # save_data = np.c_[signal_ids.iloc[ii], save_data]
+            result_pickle['network'][network_names[n]]['signal_ids'] = signal_ids.iloc[ii]
 
-        file_name = 'Errors_' + network_names[n] + '_' + population + '_SNR' + str(detect_SNR[1]) + '.txt'
+#         file_name = 'Errors_' + network_names[n] + '_' + population + '_SNR' + str(detect_SNR[1]) + '.txt'
 
-        if signals_haveids and (len(save_data) > 0):
-            np.savetxt('Errors_' + network_names[n] + '_' + population + '_SNR' + str(detect_SNR[1]) + '.txt',
-                       save_data, delimiter=' ', fmt='%s' + " %.3E" * (len(save_data[0, :]) - 1), header=header, comments='')
-        else:
-            np.savetxt('Errors_' + network_names[n] + '_' + population + '_SNR' + str(detect_SNR[1]) + '.txt',
-                       save_data, delimiter=' ', fmt='%s' + " %.3E" * (len(save_data[0, :]) - 1), header=header, comments='')
-
+#         if signals_haveids and (len(save_data) > 0):
+#             np.savetxt('Errors_' + network_names[n] + '_' + population + '_SNR' + str(detect_SNR[1]) + '.txt',
+#                        save_data, delimiter=' ', fmt='%s' + " %.3E" * (len(save_data[0, :]) - 1), header=header, comments='')
+#         else:
+#             np.savetxt('Errors_' + network_names[n] + '_' + population + '_SNR' + str(detect_SNR[1]) + '.txt',
+#                        save_data, delimiter=' ', fmt='%s' + " %.3E" * (len(save_data[0, :]) - 1), header=header, comments='')
+    with open('fisher_result.pkl', 'wb') as file:
+        pickle.dump(result_pickle, file)
