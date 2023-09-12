@@ -1086,6 +1086,11 @@ class IMRPhenomD(Waveform):
 class TEOBResumS(Waveform):
     """
     Implementation of TEOBResumS waveform
+
+    Note - Some parts of this waveform class has been incorporated from GWEAT by Anuj Mishra. It would also be advised to go through GWEAT for more detailed
+    decription
+
+    Link - https://gitlab.com/anuj-mishra/gweat
     """
     
     def __init__(self, name, gw_params, data_params):
