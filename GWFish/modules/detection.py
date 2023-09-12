@@ -135,7 +135,12 @@ class Detector:
 
         self.plotrange = np.fromstring(detector_def['plotrange'], dtype=float, sep=',')
         
-        fmin = eval(str(detector_def['fmin']))
+        #fmin = eval(str(detector_def['fmin']))
+        if eval(str(parameters['min_frequency_cutoff'].iloc[0])) is None:
+            fmin = eval(str(detector_def['fmin']))
+        else:
+            fmin = eval(str(parameters['min_frequency_cutoff'].iloc[0]))
+
         fmax = eval(str(detector_def['fmax']))
         spacing = str(detector_def['spacing'])
 
@@ -668,6 +673,8 @@ def analyzeDetections(network, parameters, population, networks_ids):
     N = len(networks_ids)
 
     save_data = parameters
+    if save_data['min_frequency_cutoff'].iloc[0] is None:
+        save_data.pop('min_frequency_cutoff')
 
     delim = " "
     header = delim.join(parameters.keys())
