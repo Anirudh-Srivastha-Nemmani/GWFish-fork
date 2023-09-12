@@ -249,6 +249,7 @@ def analyzeFisherErrors(network, parameter_values, fisher_parameters, population
         inverse_fisher_matrix = np.zeros((ns, npar, npar))
         singular_values = np.zeros((ns, npar))
         individual_parameter_errors = np.zeros((ns, npar))
+        sky_localization = np.zeros((ns,))
         for k in np.arange(ns):
             single_signal_fisher = np.zeros((npar, npar))
             
@@ -260,19 +261,32 @@ def analyzeFisherErrors(network, parameter_values, fisher_parameters, population
                     inverse_fisher_matrix[k, :, :] = single_signal_inv_fisher
                     singular_values[k, :] = single_signal_S
                     individual_parameter_errors[k, :] = np.sqrt(np.diagonal(single_signal_inv_fisher))
+                    
+                    if signals_havesky:
+                        sky_localization[k] = np.pi * np.abs(np.cos(parameter_values['dec'].iloc[k])) \
+                                              * np.sqrt(single_signal_inv_fisher[i_ra, i_ra]*single_signal_inv_fisher[i_dec, i_dec]
+                                                        -single_signal_inv_fisher[i_ra, i_dec]**2)
         
         
         jj = np.where(i.SNR > detect_SNR[1])[0]
+        SNR = i.SNR[jj]
         fisher_matrix = fisher_matrix[jj, :, :]
         inverse_fisher_matrix = inverse_fisher_matrix[jj, :, :]
         singular_values = singular_values[jj, :]
         individual_parameter_errors = individual_parameter_errors[jj, :]
+        sky_localization = sky_localization[jj]
         
         #saving the fisher matrix
+        result_pickle['individual'][key]['SNR'] = SNR
         result_pickle['individual'][key]['fisher_matrix'] = fisher_matrix
         result_pickle['individual'][key]['inverse_fisher_matrix'] = inverse_fisher_matrix
         result_pickle['individual'][key]['singular_values'] = singular_values
         result_pickle['individual'][key]['errors'] = individual_parameter_errors
+        result_pickle['individual'][key]['error_sky_localization'] = sky_localization
+        
+        #saving the signal id's
+        if signals_haveids:
+            result_pickle['individual'][key]['signal_ids'] = signal_ids.iloc[jj]
         
                     
                     
@@ -320,7 +334,7 @@ def analyzeFisherErrors(network, parameter_values, fisher_parameters, population
         inv_fishers = inv_fishers[ii, :, :]
         sing_values = sing_values[ii, :]
         
-        result_pickle['network'][network_names[n]] = {'SNR': networkSNR, 'fisher_matrix': fishers, 'inverse_fisher': inv_fishers, 
+        result_pickle['network'][network_names[n]] = {'SNR': networkSNR[ii], 'fisher_matrix': fishers, 'inverse_fisher_matrix': inv_fishers, 
                                                       'singular_values': sing_values, 'errors':parameter_errors}
         
         # np.save('Fishers_'+ network_names[n] + '_' + population + '_SNR' + str(detect_SNR[1]) + '.npy', fishers)
@@ -330,7 +344,7 @@ def analyzeFisherErrors(network, parameter_values, fisher_parameters, population
         if signals_havesky:
             # header += " err_sky_location"
             # save_data = np.c_[save_data, sky_localization[ii]]
-            result_pickle['network'][network_names[n]]['err_sky_location'] = sky_localization[ii]
+            result_pickle['network'][network_names[n]]['error_sky_location'] = sky_localization[ii]
             
             
             
@@ -349,3 +363,4 @@ def analyzeFisherErrors(network, parameter_values, fisher_parameters, population
 #                        save_data, delimiter=' ', fmt='%s' + " %.3E" * (len(save_data[0, :]) - 1), header=header, comments='')
     with open('fisher_result.pkl', 'wb') as file:
         pickle.dump(result_pickle, file)
+
