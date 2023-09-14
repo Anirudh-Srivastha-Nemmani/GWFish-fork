@@ -16,7 +16,7 @@ except ModuleNotFoundError as err:
 
 try:
     import sys
-    sys.path.append('/home/anirudh.nemmani/git_repos/teobresums/Python/')
+    sys.path.append('/home/anik/msc_projects/teobresums/Python/')
     import EOBRun_module
 except ModuleNotFoundError as err:
     useeobrun = err
@@ -33,11 +33,11 @@ except ModuleNotFoundError as err:
 #                     'If it is installed, please try to change the GWEAT module path in the "waveforms.py" file.')
 try:
     import pycbc
-    from pycbc.waveform import utils
+    from pycbc.waveform import utils, get_fd_waveform, get_td_waveform, fd_approximants, td_approximants
     from pycbc.types import TimeSeries, FrequencySeries
 except ModuleNotFoundError as err:
     logging.warning('PyCBC package is not installed.'+\
-                    'Please install it, as it is required to run TEOBResumS Module.')
+                    'Please install it, as it is required to run TEOBResumS Module and PyCBC waveform class')
 
 import GWFish as gw
 import GWFish.modules.constants as cst
@@ -430,6 +430,7 @@ class LALFD_Waveform(Waveform):
         polarizations = self._fd_gwfish_output_format(hfp, hfc)
         
         self._frequency_domain_strain = polarizations
+        plt.loglog(self._frequencyvector, np.abs(polarizations[:, 0]), linewidth=2, color='blue', label=r'$h_+$')
 
 class LALTD_Waveform(LALFD_Waveform):
     """
@@ -1395,3 +1396,149 @@ class TEOBResumS(Waveform):
 #         sub_figure_2.set_ylabel(r'Phase')
 #         sub_figure_2.legend()
 #         plt.savefig(output_folder + 'TEOBResumS.png')
+
+class PyCBC_Waveform(Waveform):
+    """
+    Implementation of PyCBC frequency domain waveform to GWFish.
+
+    Ref - https://github.com/gwastro/pycbc for more details
+    """
+
+    def __init__(self, name, gw_params, data_params):
+        super().__init__(name, gw_params, data_params)
+        self.ht_plus_out = None
+        self.ht_cross_out = None
+        
+        if self.name not in fd_approximants():
+            logging.warning(self.name + 'waveform approximant is not implemented in PyCBC')
+
+    def wf_params(self):
+        wf_pars = dict(
+            approximant = self.name,
+            mass1 = self.gw_params['mass_1'],
+            mass2 = self.gw_params['mass_2'],
+            
+            delta_f = self.delta_f,
+            delta_t = self.delta_t,
+            f_ref = self.f_ref
+        )
+        
+        # spin_input_pars = dict()
+        
+        # if 'a_1' in self.gw_params: spin_input_pars['a_1'] = self.gw_params['a_1']
+        # if 'a_2' in self.gw_params: spin_input_pars['a_2'] = self.gw_params['a_2']
+
+
+        
+        if 'spin1x' in self.gw_params: wf_pars['spin1x'] = self.gw_params['spin1x']
+        if 'spin1y' in self.gw_params: wf_pars['spin1y'] = self.gw_params['spin1y']
+        if 'spin1z' in self.gw_params: wf_pars['spin1z'] = self.gw_params['spin1z']
+        if 'spin2x' in self.gw_params: wf_pars['spin2x'] = self.gw_params['spin2x']
+        if 'spin2y' in self.gw_params: wf_pars['spin2y'] = self.gw_params['spin2y']
+        if 'spin2z' in self.gw_params: wf_pars['spin2z'] = self.gw_params['spin2z']
+        
+        if 'eccentricity' in self.gw_params: wf_pars['eccentricity'] = self.gw_params['eccentricity']
+            
+        if 'lambda1' in self.gw_params: wf_pars['lambda1'] = self.gw_params['lambda1']
+        if 'lambda2' in self.gw_params: wf_pars['lambda2'] = self.gw_params['lambda2']
+
+        if 'dquad_mon1' in self.gw_params: wf_pars['dquad_mon1'] = self.gw_params['dquad_mon1']
+        if 'dquad_mon2' in self.gw_params: wf_pars['dquad_mon2'] = self.gw_params['dquad_mon2']
+        if 'lambda_octu1' in self.gw_params: wf_pars['lambda_octu1'] = self.gw_params['lambda_octu1']
+        if 'lambda_octu2' in self.gw_params: wf_pars['lambda_octu2'] = self.gw_params['lambda_octu2']
+        if 'quadfmode1'	in self.gw_params: wf_pars['quadfmode1'] = self.gw_params['quadfmode1']
+        if 'quadfmode2' in self.gw_params: wf_pars['quadfmode2'] = self.gw_params['quadfmode2']			
+        if 'octufmode1' in self.gw_params: wf_pars['octufmode1'] = self.gw_params['octufmode1']	
+        if 'octufmode2' in self.gw_params: wf_pars['octufmode2'] = self.gw_params['octufmode2']
+            
+        if 'dchi0' in self.gw_params: wf_pars['dchi0'] = self.gw_params['dchi0'] 
+        if 'dchi1' in self.gw_params: wf_pars['dchi1'] = self.gw_params['dchi1']
+        if 'dchi2' in self.gw_params: wf_pars['dchi2'] = self.gw_params['dchi2'] 
+        if 'dchi3' in self.gw_params: wf_pars['dchi3'] = self.gw_params['dchi3'] 
+        if 'dchi4' in self.gw_params: wf_pars['dchi4'] = self.gw_params['dchi4'] 
+        if 'dchi5' in self.gw_params: wf_pars['dchi5'] = self.gw_params['dchi5']
+        if 'dchi5l' in self.gw_params: wf_pars['dchi5l'] = self.gw_params['dchi5l'] 
+        if 'dchi6' in self.gw_params: wf_pars['dchi6'] = self.gw_params['dchi6'] 
+        if 'dchi6l' in self.gw_params: wf_pars['dchi6l'] = self.gw_params['dchi6l'] 			
+        if 'dchi7' in self.gw_params: wf_pars['dchi7'] = self.gw_params['dchi7']
+
+        if 'dalpha1' in self.gw_params: wf_pars['dalpha1'] = self.gw_params['dalpha1']
+        if 'dalpha2' in self.gw_params: wf_pars['dalpha2'] = self.gw_params['dalpha2']
+        if 'dalpha3' in self.gw_params: wf_pars['dalpha3'] = self.gw_params['dalpha3']
+        if 'dalpha4' in self.gw_params: wf_pars['dalpha4'] = self.gw_params['dalpha4']
+        if 'dalpha5' in self.gw_params: wf_pars['dalpha5'] = self.gw_params['dalpha5']
+        if 'dbeta1' in self.gw_params: wf_pars['dbeta1'] = self.gw_params['dbeta1']
+        if 'dbeta2' in self.gw_params: wf_pars['dbeta2'] = self.gw_params['dbeta2']
+        if 'dbeta3' in self.gw_params: wf_pars['dbeta3'] = self.gw_params['dbeta3'] 
+            
+        if 'distance' in self.gw_params: wf_pars['distance'] = self.gw_params['distance'] 
+        if 'coa_phase' in self.gw_params: wf_pars['coa_phase'] = self.gw_params['coa_phase'] 
+        if 'inclination' in self.gw_params: wf_pars['inclination'] = self.gw_params['inclination'] 
+
+        if 'long_asc_nodes' in self.gw_params: wf_pars['long_asc_nodes'] = self.gw_params['long_asc_nodes'] 
+        if 'mean_per_ano' in self.gw_params: wf_pars['mean_per_ano'] = self.gw_params['mean_per_ano'] 
+        if 'phase_order' in self.gw_params: wf_pars['phase_order'] = self.gw_params['phase_order']
+        if 'spin_order' in self.gw_params: wf_pars['spin_order'] = self.gw_params['spin_order'] 
+        if 'tidal_order' in self.gw_params: wf_pars['tidal_order'] = self.gw_params['tidal_order'] 
+        if 'amplitude_order' in self.gw_params: wf_pars['amplitude_order'] = self.gw_params['amplitude_order'] 
+        if 'eccentricity_order' in self.gw_params: wf_pars['eccentricity_order'] = self.gw_params['eccentricity_order'] 
+        if 'frame_axis' in self.gw_params: wf_pars['frame_axis'] = self.gw_params['frame_axis'] 
+        if 'modes_choice' in self.gw_params: wf_pars['modes_choice'] = self.gw_params['modes_choice'] 
+        if 'side_bands' in self.gw_params: wf_pars['side_bands'] = self.gw_params['side_bands'] 
+        if 'mode_array' in self.gw_params: wf_pars['mode_array'] = self.gw_params['mode_array']	
+        if 'numrel_data' in self.gw_params: wf_pars['numrel_data'] = self.gw_params['numrel_data']
+
+        if 'min_frequency_cutoff' in self.gw_params: wf_pars['f_lower'] = self.gw_params['min_frequency_cutoff']
+        if 'max_frequency_cutoff' in self.gw_params: wf_pars['f_final'] = self.gw_params['max_frequency_cutoff']
+        if 'f_final_func' in self.gw_params: wf_pars['f_final_func'] = self.gw_params['f_final_func']
+            
+        pars = wf_pars.copy()
+        return pars
+
+    def _fd_gwfish_output_format(self, hfp, hfc):
+
+        hfp = hfp[:, np.newaxis]
+        hfc = hfc[:, np.newaxis]
+
+        polarizations = np.hstack((hfp, hfc))
+
+        return polarizations
+    
+
+    def calculate_frequency_domain_strain(self):
+        pars = self.wf_params()
+        self._pycbc_hf_plus_out, self._pycbc_hf_cross_out = get_fd_waveform(pars)
+        wf_pol = {'hp':self._pycbc_hf_plus_out, 'hc':self._pycbc_hf_cross_out}
+        
+        """ Interpolation of PyCBC frequency series to a given frequency vector """
+        res = dict()
+        for key in wf_pol.keys():
+            strain_array = np.array(wf_pol[key], dtype=np.complex128)
+            absolute = np.abs(strain_array)
+            phase = np.array(pycbc.waveform.utils.phase_from_frequencyseries(wf_pol[key]))
+            
+            if_abs = interp1d(wf_pol[key].sample_frequencies[:], absolute[:], kind='linear')
+            if_phase = interp1d(wf_pol[key].sample_frequencies[:], phase[:], kind='linear')
+
+            interpolated_abs = np.concatenate(([0], if_abs(self._frequencyvector[:-1])))
+            interpolated_phase = np.concatenate(([0], if_phase(self._frequencyvector[:-1])))
+
+            interpolated = interpolated_abs * np.exp(1j * interpolated_phase)
+
+            frequency_bounds = (self._frequencyvector >= self._frequencyvector[0]) * (self._frequencyvector <= self._frequencyvector[-1])
+            interpolated *= frequency_bounds
+
+            assert len(interpolated) == len(self._frequencyvector), 'length mismatch between the required frequency array and waveform output'
+
+            res[key] = interpolated
+            
+        polarizations = self._fd_gwfish_output_format(res['hp'], res['hc'])
+        self._frequency_domain_strain = polarizations
+        plt.loglog(self._frequencyvector, np.abs(polarizations[:, 0]), linewidth=2, color='blue', label=r'$h_+$')
+        
+
+
+        
+
+    
+    

@@ -346,21 +346,18 @@ def analyzeFisherErrors(network, parameter_values, fisher_parameters, population
             save_data = np.c_[save_data, sky_localization[ii]]
             # result_pickle['network'][network_names[n]]['error_sky_location'] = sky_localization[ii]
             
-            
-            
         if signals_haveids:
             header = "signal "+header
             save_data = np.c_[signal_ids.iloc[ii], save_data]
             # result_pickle['network'][network_names[n]]['signal_ids'] = signal_ids.iloc[ii]
-	
-	file_name = 'Errors_' + network_names[n] + '_' + population + '_SNR' + str(detect_SNR[1]) + '.txt'
-
-	if signals_haveids and (len(save_data) > 0):
-	    np.savetxt('outdir/Errors_' + network_names[n] + '_' + population + '_SNR' + str(detect_SNR[1]) + '.txt',
-			save_data, delimiter=' ', fmt='%s' + " %.3E" * (len(save_data[0, :]) - 1), header=header, comments='')
-	else:
-	    np.savetxt('outdir/Errors_' + network_names[n] + '_' + population + '_SNR' + str(detect_SNR[1]) + '.txt',
-                        save_data, delimiter=' ', fmt='%s' + " %.3E" * (len(save_data[0, :]) - 1), header=header, comments='')
+        file_name = 'Errors_' + network_names[n] + '_' + population + '_SNR' + str(detect_SNR[1]) + '.txt'
+        
+        if signals_haveids and (len(save_data) > 0):
+            np.savetxt('outdir/Errors_' + network_names[n] + '_' + population + '_SNR' + str(detect_SNR[1]) + '.txt',
+                       save_data, delimiter=' ', fmt='%s' + " %.3E" * (len(save_data[0, :]) - 1), header=header, comments='')
+        else:
+            np.savetxt('outdir/Errors_' + network_names[n] + '_' + population + '_SNR' + str(detect_SNR[1]) + '.txt',
+                       save_data, delimiter=' ', fmt='%s' + " %.3E" * (len(save_data[0, :]) - 1), header=header, comments='')
 #    with open('outdir/fisher_result.pkl', 'wb') as file:
 #        pickle.dump(result_pickle, file)
 
