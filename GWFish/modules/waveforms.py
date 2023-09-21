@@ -430,7 +430,6 @@ class LALFD_Waveform(Waveform):
         polarizations = self._fd_gwfish_output_format(hfp, hfc)
         
         self._frequency_domain_strain = polarizations
-        plt.loglog(self._frequencyvector, np.abs(polarizations[:, 0]), linewidth=2, color='blue', label=r'$h_+$')
 
 class LALTD_Waveform(LALFD_Waveform):
     """
@@ -1409,7 +1408,7 @@ class PyCBC_Waveform(Waveform):
         self.ht_plus_out = None
         self.ht_cross_out = None
         
-        if self.name not in fd_approximants():
+        if self.name not in fd_approximants() and self.name not in td_approximants():
             logging.warning(self.name + 'waveform approximant is not implemented in PyCBC')
 
     def wf_params(self):
@@ -1503,25 +1502,37 @@ class PyCBC_Waveform(Waveform):
         polarizations = np.hstack((hfp, hfc))
 
         return polarizations
-    
 
     def calculate_frequency_domain_strain(self):
         pars = self.wf_params()
-        self._pycbc_hf_plus_out, self._pycbc_hf_cross_out = get_fd_waveform(pars)
-        wf_pol = {'hp':self._pycbc_hf_plus_out, 'hc':self._pycbc_hf_cross_out}
         
+        if self.name in fd_approximants():
+            self._pycbc_hf_plus_out, self._pycbc_hf_cross_out = get_fd_waveform(pars)
+        elif self.name not in fd_approximants() and self.name in td_approximants():
+            self._pycbc_ht_plus_out, self._pycbc_ht_cross_out = get_fd_waveform(pars)
+            self._pycbc_hf_plus_out = self._pycbc_ht_plus_out.to_frequencyseries(delta_f=self._pycbc_ht_plus_out.delta_f)
+            self._pycbc_hf_cross_out = self._pycbc_ht_cross_out.to_frequencyseries(delta_f=self._pycbc_ht_cross_out.delta_f)
+
+        
+        wf_pol = {'hp':self._pycbc_hf_plus_out, 'hc':self._pycbc_hf_cross_out}
         """ Interpolation of PyCBC frequency series to a given frequency vector """
         res = dict()
+        
         for key in wf_pol.keys():
             strain_array = np.array(wf_pol[key], dtype=np.complex128)
             absolute = np.abs(strain_array)
             phase = np.array(pycbc.waveform.utils.phase_from_frequencyseries(wf_pol[key]))
-            
-            if_abs = interp1d(wf_pol[key].sample_frequencies[:], absolute[:], kind='linear')
-            if_phase = interp1d(wf_pol[key].sample_frequencies[:], phase[:], kind='linear')
 
-            interpolated_abs = np.concatenate(([0], if_abs(self._frequencyvector[:-1])))
-            interpolated_phase = np.concatenate(([0], if_phase(self._frequencyvector[:-1])))
+            if wf_pol[key].sample_frequencies[-1] < self._frequencyvector[-1]:
+                freqs = np.concatenate((wf_pol[key].sample_frequencies, [wf_pol[key].sample_frequencies[-1]+wf_pol[key].delta_f, self._frequencyvector[-1]]))
+                absolute_ = np.concatenate((absolute, [0, 0]))
+                phase_ = np.concatenate((phase, [0, 0]))
+                
+            if_abs = interp1d(freqs, absolute_, kind='linear')
+            if_phase = interp1d(freqs, phase_, kind='linear')
+
+            interpolated_abs = np.concatenate(([0], if_abs(self._frequencyvector[1:])))
+            interpolated_phase = np.concatenate(([0], if_phase(self._frequencyvector[1:])))
 
             interpolated = interpolated_abs * np.exp(1j * interpolated_phase)
 
@@ -1534,11 +1545,9 @@ class PyCBC_Waveform(Waveform):
             
         polarizations = self._fd_gwfish_output_format(res['hp'], res['hc'])
         self._frequency_domain_strain = polarizations
-        plt.loglog(self._frequencyvector, np.abs(polarizations[:, 0]), linewidth=2, color='blue', label=r'$h_+$')
         
+        # plt.loglog(frequencyvector, np.abs(polarizations[:, 0]), linewidth=2, color='blue', label=r'$h_+$')
 
 
-        
-
-    
+         
     
