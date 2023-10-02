@@ -203,7 +203,7 @@ class FisherMatrix:
     #         return self.fm
     #     return self.fm, self.derivative_vector
 
-def analyzeFisherErrors(network, parameter_values, fisher_parameters, population, networks_ids):
+def analyzeFisherErrors(network, parameter_values, fisher_parameters, population, networks_ids, output_path='./'):
     """
     Analyze parameter errors.
     """
@@ -361,6 +361,6 @@ def analyzeFisherErrors(network, parameter_values, fisher_parameters, population
 #         else:
 #             np.savetxt('Errors_' + network_names[n] + '_' + population + '_SNR' + str(detect_SNR[1]) + '.txt',
 #                        save_data, delimiter=' ', fmt='%s' + " %.3E" * (len(save_data[0, :]) - 1), header=header, comments='')
-    with open('fisher_result.pkl', 'wb') as file:
+    with open(output_path+'fisher_result.pkl', 'wb') as file:
         pickle.dump(result_pickle, file)
 
