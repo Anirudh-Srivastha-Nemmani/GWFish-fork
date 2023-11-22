@@ -35,6 +35,7 @@ try:
     import pycbc
     from pycbc.waveform import utils, get_fd_waveform, get_td_waveform, fd_approximants, td_approximants
     from pycbc.types import TimeSeries, FrequencySeries
+    from pycbc.conversions import mass1_from_mchirp_eta, mass2_from_mchirp_eta
 except ModuleNotFoundError as err:
     logging.warning('PyCBC package is not installed.'+\
                     'Please install it, as it is required to run TEOBResumS Module and PyCBC waveform class')
@@ -1547,6 +1548,153 @@ class PyCBC_Waveform(Waveform):
         self._frequency_domain_strain = polarizations
         
         # plt.loglog(frequencyvector, np.abs(polarizations[:, 0]), linewidth=2, color='blue', label=r'$h_+$')
+
+class LALFD_WF_new(Waveform):
+    """
+    Calls LAL to provide waveforms in frequency domain. Works with both
+    time-domain and frequency-domain waveforms. Time-domain waveforms
+    are FFT'ed in LALSimulation.
+    """
+    def __init__(self, name, gw_params, data_params):
+        super().__init__(name, gw_params, data_params)
+        self._params_lal = lal.CreateDict()
+        self._approx_lal = lalsim.GetApproximantFromString(self.name)
+        self._init_lambda()
+        self._init_lal_gw_parameters()
+        self._setup_lal_caller_args()
+    
+    @property
+    def _gw_params_for_spin_conversion(self):
+        return ['theta_jn', 'phi_jl', 'tilt_1', 'tilt_2',
+                'phi_12', 'a_1', 'a_2', 'mass_1', 'mass_2', 'phase']
+
+    def update_gw_params(self, new_gw_params):
+        self.gw_params.update(new_gw_params)
+        self._frequency_domain_strain = None
+        self._time_domain_strain = None
+        # Specific to LALFD_Waveform
+        self._init_lambda()
+        self._init_lal_gw_parameters()
+        self._setup_lal_caller_args()
+
+    def _init_lambda(self):
+        if self.gw_params['lambda_1'] != 0:
+            from lalsimulation import SimInspiralWaveformParamsInsertTidalLambda1
+            SimInspiralWaveformParamsInsertTidalLambda1(self._params_lal, float(self.gw_params['lambda_1']))
+        if self.gw_params['lambda_2'] != 0:
+            from lalsimulation import SimInspiralWaveformParamsInsertTidalLambda2
+            SimInspiralWaveformParamsInsertTidalLambda2(self._params_lal, float(self.gw_params['lambda_2']))
+
+    def _init_lal_gw_parameters(self):
+    	self.gw_params['mass_1'] =  mass1_from_mchirp_eta(self.gw_params['mchirp'], self.gw_params['eta'])
+    	self.gw_params['mass_2'] =  mass2_from_mchirp_eta(self.gw_params['mchirp'], self.gw_params['eta'])
+    	#print(self.gw_params['mass_1'], self.gw_params['mass_2'], self.gw_params['mchirp'], self.gw_params['eta'])
+    	gwfish_input_params = {kk: self.gw_params[kk] for kk in self._gw_params_for_spin_conversion}
+    	self.gw_params['iota'], self.gw_params['spin_1x'], \
+    	self.gw_params['spin_1y'], self.gw_params['spin_1z'], \
+    	self.gw_params['spin_2x'], self.gw_params['spin_2y'], \
+    	self.gw_params['spin_2z'] = bilby_to_lalsimulation_spins(\
+    	reference_frequency=self.f_ref, **gwfish_input_params)
+
+    def _setup_lal_caller_args(self):
+        if lalsim.SimInspiralImplementedFDApproximants(self._approx_lal):
+            self._lal_frequency_array = CreateREAL8Vector(len(self.frequencyvector))
+            self._lal_frequency_array.data = self.frequencyvector
+            self._waveform_postprocessing = self._hf_postproccessing_SimInspiralCFDWS
+            self._lalsim_caller = lalsim.SimInspiralChooseFDWaveformSequence
+            self._lalsim_args = [
+                self.gw_params['phase'],
+                self.gw_params['mass_1'] * lal.MSUN_SI * (1 + self.gw_params['redshift']),  # in [kg]
+                self.gw_params['mass_2'] * lal.MSUN_SI * (1 + self.gw_params['redshift']),  # in [kg]
+                self.gw_params['spin_1x'], self.gw_params['spin_1y'], self.gw_params['spin_1z'], 
+                self.gw_params['spin_2x'], self.gw_params['spin_2y'], self.gw_params['spin_2z'],
+                self.f_ref,  # reference frequency
+                self.gw_params['luminosity_distance'] * lal.PC_SI * 1e6,  # in [m]
+                self.gw_params['iota'],
+                self._params_lal,
+                self._approx_lal,
+                self._lal_frequency_array
+            ]
+        else:
+            self._waveform_postprocessing = self._hf_postproccessing_SimInspiralFD
+            self._lalsim_caller = lalsim.SimInspiralFD
+            self._lalsim_args = [
+                self.gw_params['mass_1'] * lal.MSUN_SI * (1 + self.gw_params['redshift']),  # in [kg]
+                self.gw_params['mass_2'] * lal.MSUN_SI * (1 + self.gw_params['redshift']),  # in [kg]
+                self.gw_params['spin_1x'], self.gw_params['spin_1y'], self.gw_params['spin_1z'], 
+                self.gw_params['spin_2x'], self.gw_params['spin_2y'], self.gw_params['spin_2z'],
+                self.gw_params['luminosity_distance'] * lal.PC_SI * 1e6,  # in [m]
+                self.gw_params['iota'],
+                0, # phiRef, the phase at f_ref or peak amplitude (depends on waveform)
+                0, # longAscNodes, longitude of ascending nodes
+                0, # eccentricity
+                0, # meanPerAno, mean anomaly at reference epoch
+                self.delta_f,
+                self.f_min,
+                self.f_max,
+                self.f_ref,
+                self._params_lal,
+                self._approx_lal
+            ]
+            logging.warning("{} does not allow arbitrary frequency vectors "
+                            "in LALSimulation, using standard frequency vector."
+                            "Try calling this waveform outside lalsim.".format(self.name))
+            logging.warning("Parameters phiRef, longAscNodes, eccentricity, meanPerAno"
+                            "are set to zero.")
+
+    def _update_frequency_range_indices(self):
+        self.idx_low = int(self.f_min / self.delta_f)
+        self.idx_high = int(self.f_max / self.delta_f)
+
+    def _lal_fd_strain_adjust_frequency_range(self):
+        """ Frequency array starts from zero, so we need to mask some frequencies """
+        self._update_frequency_range_indices()
+        self.hf_cross_out = self._lal_hf_cross.data.data[self.idx_low:self.idx_high+1]
+        self.hf_plus_out = self._lal_hf_plus.data.data[self.idx_low:self.idx_high+1]
+
+    def _lal_fd_phase_correction_by_epoch_and_df(self):
+        """ This correction is also done in Bilby after calling SimInspiralFD """
+        # BORIS: weird Bilby correction
+        dt = 1. / self.delta_f + (self._lal_hf_plus.epoch.gpsSeconds +
+                                  self._lal_hf_plus.epoch.gpsNanoSeconds * 1e-9)
+        self.hf_plus_out *= np.exp(
+            -1j * 2 * np.pi * dt * self.frequencyvector)
+        self.hf_cross_out *= np.exp(
+            -1j * 2 * np.pi * dt * self.frequencyvector)
+
+    def _hf_postproccessing_SimInspiralFD(self):
+        self._lal_fd_strain_adjust_frequency_range()
+        self._lal_fd_phase_correction_by_epoch_and_df()
+
+    def _hf_postproccessing_SimInspiralCFDWS(self):
+        self.hf_plus_out, self.hf_cross_out = self._lal_hf_plus.data.data, self._lal_hf_cross.data.data
+
+    def _fd_phase_correction_geocent_time(self):
+        """ Add initial 2pi*f*tc - phic - pi/4 to phase """
+        phi_in = np.exp(1.j*(2*self.frequencyvector*np.pi*self.gw_params['geocent_time']))
+
+        hfp = phi_in * np.conjugate(self.hf_plus_out)  # it's already multiplied by the phase
+        hfc = phi_in * np.conjugate(self.hf_cross_out)
+
+        return hfp, hfc
+
+    def _fd_gwfish_output_format(self, hfp, hfc):
+
+        hfp = hfp[:, np.newaxis]
+        hfc = hfc[:, np.newaxis]
+
+        polarizations = np.hstack((hfp, hfc))
+
+        return polarizations
+
+    def calculate_frequency_domain_strain(self):
+        self._lal_hf_plus, self._lal_hf_cross = self._lalsim_caller(*self._lalsim_args)
+        self._waveform_postprocessing()
+
+        hfp, hfc = self._fd_phase_correction_geocent_time()
+        polarizations = self._fd_gwfish_output_format(hfp, hfc)
+        
+        self._frequency_domain_strain = polarizations
 
 
          

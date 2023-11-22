@@ -15,7 +15,6 @@ if os.path.exists(path+"/outdir") is True:
 
 os.mkdir(path+"/outdir")
 
-
 DEFAULT_CONFIG = Path(__file__).parent.parent / 'detectors.yaml'
 PSD_PATH = Path(__file__).parent.parent / 'detector_psd'
 
@@ -144,13 +143,12 @@ class Detector:
         detector_def = doc[self.name]
 
         self.plotrange = np.fromstring(detector_def['plotrange'], dtype=float, sep=',')
-        
-        #fmin = eval(str(detector_def['fmin']))
+
         if eval(str(parameters['min_frequency_cutoff'].iloc[0])) is None:
             fmin = eval(str(detector_def['fmin']))
         else:
-            fmin = eval(str(parameters['min_frequency_cutoff'].iloc[0]))
-
+        	fmin = eval(str(parameters['min_frequency_cutoff'].iloc[0]))
+    
         fmax = eval(str(detector_def['fmax']))
         spacing = str(detector_def['spacing'])
 
@@ -162,8 +160,6 @@ class Detector:
             self.frequencyvector = np.geomspace(fmin, fmax, num=int(npoints))
 
         self.frequencyvector = self.frequencyvector[:, np.newaxis]
-        
-        self.derivative_vector = np.zeros((len(parameters), nd, len(self.frequencyvector)), dtype=np.complex128)
 
         if detector_def['detector_class'] == 'lunararray':
             self.location = 'moon'
@@ -388,7 +384,6 @@ def projection_earth(parameters, detector, polarizations, timevector):
 
     theta = np.pi / 2. - dec
     gmst = GreenwichMeanSiderealTime(timevector)
-    # print('ra : ', ra)
     phi = ra - gmst
 
     # wave vector components
@@ -452,16 +447,7 @@ def projection_earth(parameters, detector, polarizations, timevector):
 
         proj[:, k] *= np.exp(-1.j * phase_shift)
     # print("Calculation of projection: %s seconds" % (time.time() - start_time))
-    # print('Projection shape : ', proj.shape)
-    # plt.figure()
-    # plt.loglog(ff, np.abs(proj[:,0]), linewidth=2, color='blue', label=r'Projection')
-    # plt.legend(fontsize=8)
-    # #plt.axis(plot)
-    # plt.grid(which='both', color='lightgray', alpha=0.5, linestyle='dashed', linewidth=0.5)
-    # plt.xlabel(r'Frequency [Hz]')
-    # plt.ylabel(r'Amplitude')
-    # plt.title(r'Projection of the GW signal onto the detector')
-    # plt.savefig('./outdir/projection.png')
+
     return proj
 
 
@@ -729,6 +715,7 @@ def time_of_fmax(timevector, frequencyvector, fmax):
             return timevector[np.searchsorted(frequencyvector[:, 0], frequencyvector[-1])]
         else:
             return timevector[np.searchsorted(frequencyvector[:, 0], fmax)]
+
     except IndexError as e:
         raise ValueError("The max_frequency given was not found in the frequency vector - "
                          "it might be outside the detector band.") from e
