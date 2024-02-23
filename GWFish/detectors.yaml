@@ -203,7 +203,7 @@ LLO1:
             plotrange:        10, 1000, 1e-25, 1e-20
             fmin:             20
             fmax:             1024
-            spacing:          geometric
+            spacing:          linear
             df:               1./4.
             npoints:          5000
 LHO1:
@@ -217,7 +217,34 @@ LHO1:
             plotrange:        10, 1000, 1e-25, 1e-20
             fmin:             20
             fmax:             1024
+            spacing:          linear
+            df:               1./4.
+            npoints:          5000
+LLO4:
+            lat:              30.56 * np.pi / 180.
+            lon:              -90.77 * np.pi / 180.
+            opening_angle:    np.pi / 2.
+            azimuth:          197.7 * np.pi / 180.
+            psd_data:         psd_aLIGO_O4high.txt
+            duty_factor:      0.85
+            detector_class:   earthL
+            plotrange:        10, 1000, 1e-25, 1e-20
+            fmin:             20
+            fmax:             1024
             spacing:          geometric
             df:               1./4.
             npoints:          5000
-
+LHO4:
+            lat:              46.46 * np.pi / 180.
+            lon:              -119.4 * np.pi / 180.
+            opening_angle:    np.pi / 2.
+            azimuth:          126. * np.pi / 180.
+            psd_data:         psd_aLIGO_O4high.txt
+            duty_factor:      0.85
+            detector_class:   earthL
+            plotrange:        10, 1000, 1e-25, 1e-20
+            fmin:             20
+            fmax:             1024
+            spacing:          geometric
+            df:               1./4.
+            npoints:          5000
