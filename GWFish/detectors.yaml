@@ -25,7 +25,8 @@ VOY:
             fmax:             1024
             spacing:          geometric 
             df:               1./4.    
-            npoints:          5000           
+            npoints:          5000   
+# CE Configurations:==================================================================================
 CE1:
             lat:              46.5 * np.pi / 180.
             lon:              -119.4 * np.pi / 180.
@@ -53,8 +54,10 @@ CE2:
             fmax:             1024
             spacing:          geometric 
             df:               1./4.    
-            npoints:          5000 
+            npoints:          5000
+
 LLO:
+# psd: https://dcc.ligo.org/public/0165/T2000012/002/AplusDesign.txt
             lat:              30.56 * np.pi / 180.
             lon:              -90.77 * np.pi / 180.
             opening_angle:    np.pi / 2.
@@ -69,6 +72,7 @@ LLO:
             df:               1./4.    
             npoints:          5000    
 LHO:
+# psd: https://dcc.ligo.org/public/0165/T2000012/002/AplusDesign.txt
             lat:              46.46 * np.pi / 180.
             lon:              -119.4 * np.pi / 180.
             opening_angle:    np.pi / 2.
@@ -83,6 +87,7 @@ LHO:
             df:               1./4.    
             npoints:          5000 
 VIR:
+# psd: https://dcc.ligo.org/public/0165/T2000012/002/avirgo_O5high_NEW.txt
             lat:              43.6 * np.pi / 180.
             lon:              10.5 * np.pi / 180.
             opening_angle:    np.pi / 2.
@@ -111,6 +116,7 @@ VIR_O2:
             df:               1./4.
             npoints:          5000 
 KAG:
+# psd: https://dcc.ligo.org/public/0165/T2000012/002/kagra_128Mpc.txt
             lat:              36.41 * np.pi / 180.
             lon:              137.3 * np.pi / 180.
             opening_angle:    np.pi / 2.
@@ -125,6 +131,7 @@ KAG:
             df:               1./4.    
             npoints:          5000 
 LIN:
+# psd: https://dcc.ligo.org/public/0165/T2000012/002/AplusDesign.txt
             lat:              19.61 * np.pi / 180.
             lon:              77.03 * np.pi / 180.
             opening_angle:    np.pi / 2.
@@ -137,7 +144,8 @@ LIN:
             fmax:             1024
             spacing:          geometric 
             df:               1./4.    
-            npoints:          5000     
+            npoints:          5000
+# LISA Configuration:=================================================================================
 LISA:  
             arm_length:       2.5e9
             psd_data:         LISA_psd.txt
@@ -149,6 +157,7 @@ LISA:
             fmax:             0.3
             spacing:          linear
             df:               1e-4
+# LGWA Configurations:================================================================================
 LGWA:
             lat:              -85 * np.pi / 180.
             lon:              0
@@ -190,9 +199,10 @@ LGWA_Soundcheck:
             fmin:             1e-3
             fmax:             4
             spacing:          linear
-            df:               1./4096.
-
-LLO1:
+            df:               1./4096.       
+# LIGO O1 Configurations:=============================================================================
+# psds: https://dcc.ligo.org/public/0158/P1900011/001/GWTC1_GW150914_PSDs.dat
+LLO_O1:
             lat:              30.56 * np.pi / 180.
             lon:              -90.77 * np.pi / 180.
             opening_angle:    np.pi / 2.
@@ -200,13 +210,13 @@ LLO1:
             psd_data:         LLO_O1_psd.txt
             duty_factor:      0.85
             detector_class:   earthL
-            plotrange:        10, 1000, 1e-25, 1e-20
+            plotrange:        20, 1000, 1e-25, 1e-20
             fmin:             20
             fmax:             1024
             spacing:          linear
-            df:               1./4.
+            df:               1./80.
             npoints:          5000
-LHO1:
+LHO_O1:
             lat:              46.46 * np.pi / 180.
             lon:              -119.4 * np.pi / 180.
             opening_angle:    np.pi / 2.
@@ -214,13 +224,61 @@ LHO1:
             psd_data:         LHO_O1_psd.txt
             duty_factor:      0.85
             detector_class:   earthL
+            plotrange:        20, 1000, 1e-25, 1e-20
+            fmin:             20
+            fmax:             1024
+            spacing:          linear
+            df:               1./80.
+            npoints:          5000
+# LIGO O3 Configurations:=============================================================================
+LLO_O3:
+# psd: https://dcc.ligo.org/public/0165/T2000012/002/aligo_O3actual_L1.txt
+            lat:              30.56 * np.pi / 180.
+            lon:              -90.77 * np.pi / 180.
+            opening_angle:    np.pi / 2.
+            azimuth:          197.7 * np.pi / 180.
+            psd_data:         LLO_O3_psd.txt
+            duty_factor:      0.85
+            detector_class:   earthL
             plotrange:        10, 1000, 1e-25, 1e-20
             fmin:             20
             fmax:             1024
             spacing:          linear
-            df:               1./4.
+            df:               1./40.
             npoints:          5000
-LLO4:
+LHO_O3:
+# psd: https://dcc.ligo.org/public/0165/T2000012/002/aligo_O3actual_H1.txt
+            lat:              46.46 * np.pi / 180.
+            lon:              -119.4 * np.pi / 180.
+            opening_angle:    np.pi / 2.
+            azimuth:          126. * np.pi / 180.
+            psd_data:         LHO_O3_psd.txt
+            duty_factor:      0.85
+            detector_class:   earthL
+            plotrange:        10, 1000, 1e-25, 1e-20
+            fmin:             20
+            fmax:             1024
+            spacing:          linear
+            df:               1./40.
+            npoints:          5000
+VIR_O3:
+# psd: https://dcc.ligo.org/public/0165/T2000012/002/avirgo_O3actual.txt
+            lat:              43.6 * np.pi / 180.
+            lon:              10.5 * np.pi / 180.
+            opening_angle:    np.pi / 2.
+            azimuth:          71. * np.pi / 180.
+            psd_data:         Virgo_O3_psd.txt
+            duty_factor:      0.85
+            detector_class:   earthL
+            plotrange:        10, 1000, 1e-24, 1e-29
+            fmin:             20
+            fmax:             1024
+            spacing:          linear
+            df:               1./20.    
+            npoints:          5000 
+# LIGO O4 Configurations:=============================================================================
+# psd: https://dcc.ligo.org/public/0165/T2000012/002/aligo_O4high.txt
+LLO_O4:
             lat:              30.56 * np.pi / 180.
             lon:              -90.77 * np.pi / 180.
             opening_angle:    np.pi / 2.
@@ -234,7 +292,7 @@ LLO4:
             spacing:          geometric
             df:               1./4.
             npoints:          5000
-LHO4:
+LHO_O4:
             lat:              46.46 * np.pi / 180.
             lon:              -119.4 * np.pi / 180.
             opening_angle:    np.pi / 2.
@@ -248,3 +306,18 @@ LHO4:
             spacing:          geometric
             df:               1./4.
             npoints:          5000
+VIR_O4:
+# psd: https://dcc.ligo.org/public/0165/T2000012/002/avirgo_O4high_NEW.txt
+            lat:              43.6 * np.pi / 180.
+            lon:              10.5 * np.pi / 180.
+            opening_angle:    np.pi / 2.
+            azimuth:          71. * np.pi / 180.
+            psd_data:         Virgo_O4_psd.txt
+            duty_factor:      0.85
+            detector_class:   earthL
+            plotrange:        10, 1000, 1e-25, 1e-20
+            fmin:             20
+            fmax:             1024
+            spacing:          geometric 
+            df:               1./4.    
+            npoints:          5000 
