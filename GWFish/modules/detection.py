@@ -103,6 +103,8 @@ class DetectorComponent:
                 # instrument noise of T channel
                 self.psd_data[:, 1] = (2 + 4 * np.cos(2 * np.pi * ff * self.L / cst.c)**2) * (
                         4 * np.sin(np.pi * ff * self.L / cst.c) ** 2 * S_pm + S_opt)
+        else:
+            self.psd_data = np.loadtxt(PSD_PATH / detector_def['psd_data'])
 
         self.Sn = interp1d(self.psd_data[:, 0], self.psd_data[:, 1], bounds_error=False, fill_value=1.)
 
@@ -169,6 +171,8 @@ class Detector:
         elif detector_def['detector_class'] == 'satellitesolarorbit':
             self.location = 'solarorbit'
             self.mission_lifetime = eval(str(detector_def['mission_lifetime']))
+        elif detector_def['detector_class'] == 'avg_response':
+            self.location = 'Ideal'
 
         if (detector_def['detector_class'] == 'earthDelta') or (detector_def['detector_class'] == 'satellitesolarorbit'):
             for k in np.arange(3):
@@ -181,8 +185,13 @@ class Detector:
                 self.components.append(DetectorComponent(name=name, component=1, detector_def=detector_def, plot=plot))
             else:
                 self.components.append(DetectorComponent(name=name, component=0, detector_def=detector_def, plot=plot))
-        else:
-            self.components.append(DetectorComponent(name=name, component=0, detector_def=detector_def, plot=plot))
+        elif detector_def['detector_class'] == 'avg_response':
+            self.Rf = eval(str(detector_def['Rf']))
+            if self.name == 'DECIGO_avg':
+                for k in range(8):
+                    self.components.append(DetectorComponent(name=name, component=k, detector_def=detector_def, plot=plot))
+            else:
+                self.components.append(DetectorComponent(name=name, component=0, detector_def=detector_def, plot=plot))
 
 
 class Network:
@@ -307,6 +316,8 @@ def projection(parameters, detector, polarizations, timevector):
         proj = projection_moon(parameters, detector, polarizations, timevector)
     elif detector.location == 'solarorbit':
         proj = projection_solarorbit(parameters, detector, polarizations, timevector)
+    elif detector.location == 'Ideal':
+        proj = projection_average(parameters, detector, polarizations)
     else:
         print('Unknown detector location')
         exit(0)
@@ -537,6 +548,27 @@ def projection_moon(parameters, detector, polarizations, timevector):
         tc = time_of_fmax(timevector, detector.frequencyvector, fmax)
         
     proj[np.where(timevector < tc - max_observation_time), :] = 0.j
+
+    return proj
+
+
+def projection_average(parameters, detector, polarizations):
+    """
+    
+    """
+
+    # timevector = parameters['geocent_time'] * np.ones_like(timevector)  # switch off Earth's rotation
+
+    nf = len(polarizations[:, 0])
+    ff = detector.frequencyvector
+
+    components = detector.components
+    proj = np.zeros((nf, len(components)), dtype=complex)
+
+    Rf = detector.Rf
+    for k in np.arange(len(components)):
+        proj[:, k] = np.sqrt(Rf) * (polarizations[:, 0] + polarizations[:, 1])
+    # print("Calculation of projection: %s seconds" % (time.time() - start_time))
 
     return proj
 

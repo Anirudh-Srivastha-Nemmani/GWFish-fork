@@ -320,4 +320,41 @@ VIR_O4:
             fmax:             1024
             spacing:          geometric 
             df:               1./4.    
-            npoints:          5000 
+            npoints:          5000
+# Avg Response detectors:===================================================================
+LIGO_O5_avg:
+# psd: https://dcc.ligo.org/public/0165/T2000012/002/AplusDesign.txt
+            Rf:               1./5.
+            psd_data:         LIGO_O5_psd.txt
+            duty_factor:      0.85
+            detector_class:   avg_response
+            plotrange:        10, 1000, 1e-25, 1e-20
+            fmin:             8
+            fmax:             1024
+            spacing:          geometric 
+            df:               1./4.    
+            npoints:          5000
+DECIGO_avg:
+# psd: https://arxiv.org/abs/1101.3940
+            Rf:               1./5.
+            psd_data:         DECIGO_psd.txt
+            duty_factor:      1
+            detector_class:   avg_response
+            plotrange:        1e-3, 100, 1e-25, 1e-19
+            fmin:             1e-3
+            fmax:             100
+            spacing:          geometric 
+            df:               1./4.    
+            npoints:          5000
+BBO_avg:
+# psd: https://arxiv.org/abs/1101.3940
+            Rf:               1./5.
+            psd_data:         BBO_psd.txt
+            duty_factor:      1
+            detector_class:   avg_response
+            plotrange:        1e-3, 100, 1e-25, 1e-19
+            fmin:             1e-3
+            fmax:             100
+            spacing:          geometric 
+            df:               1./4.    
+            npoints:          5000
