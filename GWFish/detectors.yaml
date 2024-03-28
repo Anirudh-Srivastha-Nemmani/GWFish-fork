@@ -321,7 +321,31 @@ VIR_O4:
             spacing:          geometric 
             df:               1./4.    
             npoints:          5000
-# Avg Response detectors:===================================================================
+# Avg Response detectors:=============================================================================
+LLO_O1_avg:
+# psd: https://dcc.ligo.org/public/0158/P1900011/001/GWTC1_GW150914_PSDs.dat
+            Rf:               1./5.
+            psd_data:         LLO_O1_psd.txt
+            duty_factor:      0.85
+            detector_class:   avg_response
+            plotrange:        10, 1000, 1e-25, 1e-20
+            fmin:             20
+            fmax:             1024
+            spacing:          linear 
+            df:               1./4.    
+            npoints:          5000
+LHO_O1_avg:
+# psd: https://dcc.ligo.org/public/0158/P1900011/001/GWTC1_GW150914_PSDs.dat
+            Rf:               1./5.
+            psd_data:         LHO_O1_psd.txt
+            duty_factor:      0.85
+            detector_class:   avg_response
+            plotrange:        10, 1000, 1e-25, 1e-20
+            fmin:             20
+            fmax:             1024
+            spacing:          linear 
+            df:               1./4.    
+            npoints:          5000
 LIGO_O5_avg:
 # psd: https://dcc.ligo.org/public/0165/T2000012/002/AplusDesign.txt
             Rf:               1./5.

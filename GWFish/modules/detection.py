@@ -554,10 +554,9 @@ def projection_moon(parameters, detector, polarizations, timevector):
 
 def projection_average(parameters, detector, polarizations):
     """
-    
+    See T. Robson et al. (2018) arXiv:1803.01944v2
+    for average projection calculation.
     """
-
-    # timevector = parameters['geocent_time'] * np.ones_like(timevector)  # switch off Earth's rotation
 
     nf = len(polarizations[:, 0])
     ff = detector.frequencyvector
@@ -569,7 +568,6 @@ def projection_average(parameters, detector, polarizations):
     for k in np.arange(len(components)):
         proj[:, k] = np.sqrt(Rf) * (polarizations[:, 0] + polarizations[:, 1])
     # print("Calculation of projection: %s seconds" % (time.time() - start_time))
-
     return proj
 
 
