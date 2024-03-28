@@ -192,6 +192,9 @@ class Detector:
                     self.components.append(DetectorComponent(name=name, component=k, detector_def=detector_def, plot=plot))
             else:
                 self.components.append(DetectorComponent(name=name, component=0, detector_def=detector_def, plot=plot))
+        else:
+            self.components.append(DetectorComponent(name=name, component=0, detector_def=detector_def, plot=plot))
+
 
 
 class Network:
