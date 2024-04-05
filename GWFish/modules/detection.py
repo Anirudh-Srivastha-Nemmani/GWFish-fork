@@ -172,7 +172,7 @@ class Detector:
             self.location = 'solarorbit'
             self.mission_lifetime = eval(str(detector_def['mission_lifetime']))
         elif detector_def['detector_class'] == 'avg_response':
-            self.location = 'Ideal'
+            self.location = 'sky_pol_avg'
 
         if (detector_def['detector_class'] == 'earthDelta') or (detector_def['detector_class'] == 'satellitesolarorbit'):
             for k in np.arange(3):
@@ -319,7 +319,7 @@ def projection(parameters, detector, polarizations, timevector):
         proj = projection_moon(parameters, detector, polarizations, timevector)
     elif detector.location == 'solarorbit':
         proj = projection_solarorbit(parameters, detector, polarizations, timevector)
-    elif detector.location == 'Ideal':
+    elif detector.location == 'sky_pol_avg':
         proj = projection_average(parameters, detector, polarizations)
     else:
         print('Unknown detector location')

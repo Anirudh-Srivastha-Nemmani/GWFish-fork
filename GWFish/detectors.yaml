@@ -366,7 +366,7 @@ DECIGO_avg:
             detector_class:   avg_response
             plotrange:        1e-3, 100, 1e-25, 1e-19
             fmin:             1e-3
-            fmax:             100
+            fmax:             10
             spacing:          geometric 
             df:               1./4.    
             npoints:          5000
@@ -378,7 +378,7 @@ BBO_avg:
             detector_class:   avg_response
             plotrange:        1e-3, 100, 1e-25, 1e-19
             fmin:             1e-3
-            fmax:             100
+            fmax:             10
             spacing:          geometric 
             df:               1./4.    
             npoints:          5000
