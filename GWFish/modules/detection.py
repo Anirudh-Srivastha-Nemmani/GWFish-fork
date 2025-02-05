@@ -119,7 +119,7 @@ class DetectorComponent:
 
 class Detector:
     
-    def __init__(self, name: str, config=DEFAULT_CONFIG):
+    def __init__(self, name: str, config=DEFAULT_CONFIG, override_frequencyvector=None):
         """"""
         self.components = []
 
@@ -143,9 +143,6 @@ class Detector:
         fmax = eval(str(detector_def['fmax']))
         spacing = str(detector_def['spacing'])
 
-       
-        
-
         if spacing == 'linear':
             df = eval(str(detector_def['df']))
             self.frequencyvector = np.linspace(fmin, fmax, int((fmax - fmin) / df) + 1)
@@ -153,7 +150,10 @@ class Detector:
             npoints = eval(str(detector_def['npoints']))
             self.frequencyvector = np.geomspace(fmin, fmax, num=int(npoints))
 
-        self.frequencyvector = self.frequencyvector[:, np.newaxis]
+        if override_frequencyvector is not None:
+            self.frequencyvector = override_frequencyvector[:, np.newaxis]
+        else:
+            self.frequencyvector = self.frequencyvector[:, np.newaxis]
 
         if detector_def['detector_class'] == 'lunararray':
             self.location = 'moon'
@@ -196,7 +196,7 @@ class Network:
     :attr detectors: list of `Detector` objects 
     """
 
-    def __init__(self, detector_ids: list[str], detection_SNR: tuple[float, float]=(0., 10.), config: Path=DEFAULT_CONFIG):
+    def __init__(self, detector_ids: list[str], detection_SNR: tuple[float, float]=(0., 10.), config: Path=DEFAULT_CONFIG, override_frequencies=None):
         """
         :param detector_ids: list of detector names
         :param detection_SNR: tuple of single-detector and network detection threshold SNR
@@ -215,8 +215,8 @@ class Network:
         self.config = config
 
         self.detectors = [
-            Detector(name=identifier, config=config)
-            for identifier in detector_ids
+            Detector(name=identifier, config=config, override_frequencyvector=override_frequencyvector)
+                for identifier, override_frequencyvector in zip(detector_ids, override_frequencies)
         ]
 
     def partial(self, sub_network_ids: list[int]):
@@ -660,6 +660,8 @@ def projection_moon(parameters, detector, polarizations, timevector, in_band_sli
         
         phase_shift = components[k].ephem.phase_term(ra, dec, np.squeeze(timevector)[in_band_slice], np.squeeze(detector.frequencyvector)[in_band_slice])
 
+        phase_shift = np.nan_to_num(phase_shift)
+
         # proj[:, k] = np.einsum('i,jik,k->j', e1, hij, e2)
         proj[in_band_slice, k] = e1[0] * e2[0] * hxx \
                      + e1[1] * e2[1] * hyy \
@@ -672,7 +674,7 @@ def projection_moon(parameters, detector, polarizations, timevector, in_band_sli
 
     #print("Calculation of projection: %s seconds" % (time.time() - start_time))
 
-    return proj
+    return np.nan_to_num(proj)
 
 
 def lisaGWresponse(detector):

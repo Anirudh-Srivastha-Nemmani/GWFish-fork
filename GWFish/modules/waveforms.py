@@ -14,6 +14,13 @@ except ModuleNotFoundError as err:
     logging.warning('LAL package is not installed.'+\
                     'Only GWFish waveforms available.')
 
+try:
+    import pycbc
+    import pycbc.waveform
+except ModuleNotFoundError as err:
+    logging.warning('PyCBC package is not installed.'+\
+                    'Please install it, as it is required to run TEOBResumS and PyCBC Modules.')
+
 import GWFish as gw
 import GWFish.modules.constants as cst
 import GWFish.modules.auxiliary as aux
@@ -1029,3 +1036,120 @@ class IMRPhenomD(Waveform):
         plt.savefig(output_folder + 'psi_phenomD_zoomed.png')
         plt.close()
 
+class PyCBC(Waveform):
+    """
+    Implementation of PyCBC waveforms in GWFish
+
+    Note - This implimentation is due to that fact that some waveforms are not available in XLALSimInspiralChooseFDWaveformSequence (https://lscsoft.docs.ligo.org/lalsuite/lalsimulation/_l_a_l_sim_inspiral_waveform_cache_8c_source.html#l00882)
+           To overcome this issue, I have started implementing PyCBC into the GWFish framework and then interpolate the final waveform to the desired frequency vector.
+    """
+
+    def __init__(self, name, gw_params, data_params):
+        super().__init__(name, gw_params, data_params)
+        self._init_lal_gw_parameters()
+
+    @property
+    def _gw_params_for_spin_conversion(self):
+        return ['theta_jn', 'phi_jl', 'tilt_1', 'tilt_2',
+                'phi_12', 'a_1', 'a_2', 'mass_1', 'mass_2', 'phase']
+
+    def update_gw_params(self, new_gw_params):
+        self.gw_params.update(new_gw_params)
+        self._frequency_domain_strain = None
+        self._time_domain_strain = None
+        # Specific to LALFD_Waveform
+        self._init_lal_gw_parameters()
+
+    def _init_lal_gw_parameters(self):
+        gwfish_input_params = {kk: self.gw_params[kk] for kk in self._gw_params_for_spin_conversion}
+        self.gw_params['iota'], self.gw_params['spin_1x'], \
+            self.gw_params['spin_1y'], self.gw_params['spin_1z'], \
+            self.gw_params['spin_2x'], self.gw_params['spin_2y'], \
+            self.gw_params['spin_2z'] = bilby_to_lalsimulation_spins(\
+            reference_frequency=self.f_ref, **gwfish_input_params)
+        
+    # def modes_to_k(self, modes):
+    #     """ Map (l, m) to linear index """
+    #     return sorted([int(x[0]*(x[0]-1)/2 + x[1]-2) for x in modes])
+        
+    def _fd_gwfish_output_format(self, hfp, hfc):
+
+        hfp = hfp[:, np.newaxis]
+        hfc = hfc[:, np.newaxis]
+
+        polarizations = np.hstack((hfp, hfc))
+
+        return polarizations
+    
+    def calculate_frequency_domain_strain(self):
+
+        if 'eccentricity' not in self.gw_params:
+            self.gw_params['eccentricity'] = 0.0
+        
+        if 'delta_f_generation' in self.gw_params:
+            delta_f = self.gw_params['delta_f_generation']
+        else:
+            delta_f = self.delta_f
+
+        hp, hc = pycbc.waveform.get_fd_waveform(
+            approximant=self.name,
+            mass1=self.gw_params['mass_1'],
+            mass2=self.gw_params['mass_2'],
+            spin1x=self.gw_params['spin_1x'],
+            spin1y=self.gw_params['spin_1y'],
+            spin1z=self.gw_params['spin_1z'],
+            spin2x=self.gw_params['spin_2x'],
+            spin2y=self.gw_params['spin_2y'],
+            spin2z=self.gw_params['spin_2z'],
+            inclination=self.gw_params['iota'],
+            coa_phase=self.gw_params['phase'],
+            distance=self.gw_params['luminosity_distance'],
+            eccentricity=self.gw_params['eccentricity'],
+            delta_f = delta_f,
+            f_lower=self.f_min,
+            f_final=self.f_max+2*delta_f,
+            f_ref=self.f_ref
+        )
+        
+        wfs_res = {'hp':hp, 'hc':hc}
+
+        frequency_vector = self._frequencyvector
+
+        # Phase correction based on the geocent_time
+        phase_in = np.exp(1.j*(2*self.frequencyvector*np.pi*self.gw_params['geocent_time']))
+        # mod_1 = lambda x: x - np.floor(x)
+        # phase_in = np.exp(1.j*(2*np.pi*mod_1(self.frequencyvector*self.gw_params['geocent_time'])))
+        
+        res = dict()
+        for key in wfs_res.keys():
+
+            temp_fd = wfs_res[key]
+
+            # Getting the log strain data
+            log_strain_array = np.log10(np.array(temp_fd, dtype=np.complex128))
+
+            #Getting the absolute value of the frequency series in log series
+            log_abs = np.real(log_strain_array) # Check the linear interpolation of log series to understand the formalism.
+
+            #Getting the un wrapped phase of the frequency series
+            phase = np.array(pycbc.waveform.utils.phase_from_frequencyseries(temp_fd))
+
+            # Generating the interpolation function
+            if_log_abs = interp1d(temp_fd.sample_frequencies[:], log_abs[:], kind='linear')
+            if_phase = interp1d(temp_fd.sample_frequencies[:], phase[:], kind='linear')
+
+            # Generating interpolated points based on the given frequency vector
+            interpolated_abs = 10**(if_log_abs(frequency_vector[:]))
+            interpolated_phase = if_phase(frequency_vector[:])
+            interpolated_strain = interpolated_abs * np.exp(1j * interpolated_phase)
+
+            # Applying boundary conditions of the frequency vector
+            frequency_bounds = (frequency_vector >= frequency_vector[0]) * (frequency_vector <= frequency_vector[-1])
+            interpolated_strain *= frequency_bounds
+
+            assert len(interpolated_strain) == len(frequency_vector), 'length mismatch between the required frequency array and TEOBResumS output'
+
+            res[key] = phase_in*np.conjugate(interpolated_strain)
+
+        polarizations = self._fd_gwfish_output_format(res['hp'], res['hc'])
+        self._frequency_domain_strain = polarizations
