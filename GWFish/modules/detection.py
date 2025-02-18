@@ -215,9 +215,11 @@ class Network:
         self.config = config
 
         self.detectors = [
-            Detector(name=identifier, config=config, override_frequencyvector=override_frequencyvector)
-                for identifier, override_frequencyvector in zip(detector_ids, override_frequencies)
-        ]
+                    Detector(name=identifier, config=config, override_frequencyvector=override_frequencyvector)
+                            for identifier, override_frequencyvector in zip(detector_ids, override_frequencies or [None] * len(detector_ids))
+                        ]
+
+        
 
     def partial(self, sub_network_ids: list[int]):
         
